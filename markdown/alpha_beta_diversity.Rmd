@@ -1,0 +1,138 @@
+---
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+params:
+  voi : ""
+  num_rows: 1
+---
+
+# Alpha Diversity Analysis
+Alpha diversity reflects the species richness (number of species present in a sample) and the species evenness (the degree to which species in an environment are found in equal proportions). 
+
+Rarefaction is a technique to estimate alpha diversity. Random sampling from a sample gives a count (or index) representing diversity. Sampling is repeated to a given depth, and the counts are plotted as a rarefaction curve. The sampling depth is likely sufficient when the slope of the rarefaction curve approaches zero, indicating that most of the OTUs have been observed. 
+
+## Rarefaction curves
+<div>
+<object data="Alpha_diversity_Rarefaction_Curve_.png" width="900" height="600">
+</object>
+</div>
+
+
+## Rarefied boxplots
+<div>
+<object data="Alpha_diversity_boxplot_rarefied.png" width="900" height="600">
+</object>
+</div>
+
+## Alpha diversity association test
+
+```{r, echo=FALSE, results='asis'}
+library(knitr)
+lines <- readLines("Alpha_diversity_test_results_rarefied_.txt")
+measures <- grep("Alpha diversity: ", lines)
+fixed_colns <- character(5)
+start <- which(lines == "Linear model:") + 1
+end <- start + params$num_rows + 1
+
+for (i in 1:length(measures)){
+  tab <- read.table(text = lines[start[i]:end[i]], fill=TRUE, header=TRUE)
+  colns <- strsplit (lines[start[i]], "\\s+")[[1]]
+  fixed_colns <- c(" ", "Estimate", "Std. Error", "t value", "Pr(>|t|)")
+  colnames(tab) <- fixed_colns
+  measure <- lines[measures[i]]
+  print(kable(tab[,c(1,2,3,4,5)], caption=paste(measure, "test results"), align=c(rep("l",4), rep("c",4))))
+  
+}
+```
+
+
+# Beta Diversity Analysis
+Beta diversity determines the shared diversity between bacterial populations in terms of various ecological distances. Different distance metrics reveal distinctive views of community structure. Unweighted, weighted, and Bray-Curtis distances were constructed using the OTU table and the phylogenetic tree. UniFrac distances measure the shared phylogenetic diversity between communities. Unweighted UniFrac distance captures the difference in community in community membership and/or rare and elss abundant lineages while weighted UniFrac distance is more influenced by the change in abundant lineages. Rarefaction was performed on the OTU table before calculating the distanced. 
+
+## Ordination plots
+<div>
+<object data="Beta_diversity_ordination_cmd_`r params$voi`.png" width="900" height="600">
+</object>
+</div>
+
+
+## Distance comparison boxplots
+<div>
+<object data="Beta_diversity_btw_TRUE_wth_TRUE_no_strata_boxplot.png" width="900" height="600">
+</object>
+</div>
+
+
+## Hierarchical clustering
+
+Hierarchical clustering is performed based on distance metrics. Complete linkage is used.
+
+<div>
+<object data="Beta_diversity_Hierachical_clustering_.pdf" type="application/pdf" width="900" height="600">
+</object>
+</div>
+
+## Beta diversity association test
+
+###PERMANOVA test
+PERMANOVA is a multivariate analysis of variance based on distance matrices and permutation, partitioning distance matrices among sources of variation and fitting linear models to distance matrices. PERMANOVA analysis was performed using the <code>adonis</code> package in R.
+```{r, echo=FALSE, results='asis'}
+library(knitr)
+lines <- readLines("Beta_diversity_PERMANOVA_test_.txt")
+measures <- grep("distance: ", lines)
+fixed_colns <- character(7)
+start <- measures + 1
+end <- start + 4
+
+for (i in 1:length(measures)){
+  tab <- read.table(text = lines[start[i]:end[i]], fill=TRUE, header=TRUE)
+  print(kable(tab[,c(1,2,3,4,5)], caption=paste(lines[measures[i]], "Permanova"), align=c(rep("l",5), rep("c",5))))
+}
+
+G_test <- grep("combining", lines)
+G_start <- G_test+1
+G_end <- G_test+3
+tab <- read.table(text = lines[G_start:G_end], fill=TRUE, header=TRUE)
+G_caption <- lines[G_test]
+print(kable(tab, caption=G_caption, align=c(rep("l",2), rep("c",2))))
+
+
+```
+
+### MiRKAT test
+MiRKAT is a kernel-based association test based on ecological distance matrices. MiRKAT produces analytic p-values for individual distance metrics, as well as a permutation-based omnibus p-value that combines multiple distance metrics, for a more robust and powerful assessment of significance.
+
+
+```{r, echo=FALSE, resuts='asis'}
+lines <- readLines("Beta_diversity_MiRKAT_test_.txt")
+caption = grep("MiRKAT", lines)
+indiv_pval <- read.table(text = lines[4])
+omnibus <- grep("Omnibus", lines)
+omni_split <- strsplit (lines[omnibus], ":")[[1]]
+colnames(indiv_pval) = c("Omnibus", "UniFrac", "WUniFrac", "BC")
+indiv_pval$"Omnibus" <- omni_split[2]
+knitr::kable(indiv_pval, caption=paste("P-values for",lines[caption]), align=c(rep("l",4), rep("c",4)) )
+```
+
+### BETADISPER test
+BETADISPER is part of the R <code>vegan</code> package. It is a multivariate analogue of Levene's test for homogeneity of varainces. Non-euclidean distances between objects and group centroids are handled by reducing the original distances to principal coordinates. 
+```{r, echo=FALSE, results='asis'}
+lines <- readLines("Beta_diversity_BETADISPER_test.txt")
+caption = grep("Betadisper", lines)
+measures <- grep("distance: ", lines)
+fixed_colns <- character(6)
+start <- measures + 1
+end <- start + 2
+
+for (i in 1:length(measures)){
+  tab <- read.table(text = lines[start[i]:end[i]], fill=TRUE, header=TRUE)
+  colns <- strsplit (lines[start[i]], "\\s+")[[1]]
+  fixed_colns <- c(" ", "Df", "Sum Sq", "Mean Sq", "F Value", "Pr(>F)")
+  colnames(tab) <- fixed_colns
+  measure <- lines[measures[i]]
+  print(kable(tab[,c(1,2,3,4,5,6)], caption=paste(measure), align=c(rep("l",6), rep("c",6))))
+}
+```

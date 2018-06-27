@@ -1,0 +1,109 @@
+---
+title: "Sequence data summary"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+params:
+  voi : ""
+  table : ""
+  minreads : ""
+  samples_removed : ""
+  samples_kept : ""
+  OTU_vector : ""
+  num_phyla : ""
+  num_family : ""
+  num_genus : ""
+  perc_zero : ""
+---
+
+# Sequencing statistics
+<div>
+<object data="Sequence_Analysis_Statistics_`r params$voi`.png" width="900" height="600">
+</object>
+</div>
+
+
+Paired R1 and R2 sequence reads were processed via the hybrid-denovo bioinformatics sequencing pipeline. Samples with less than `r params$minreads` were removed (`r length(params$sampl_removed)` samples were removed). In total, `r sum(params$samples_kept)` reads (median: `r fivenum(params$samples_kept)[3]` reads per sample, range: `r fivenum(params$samples_kept)[1]` to `r fivenum(params$samples_kept)[5]` reads per sample, lower quartile: `r fivenum(params$samples_kept)[2]`, upper quartile: `r fivenum(params$samples_kept)[4]`) passed quality control in study samples
+
+Clustering of these 16S sequence tags produces `r length(params$OTU_vector)` non-singleton OTUs at 97% similarity (median: `r fivenum(params$OTU_vector)[3]` reads per OTU, range: `r fivenum(params$OTU_vector)[1]` to `r fivenum(params$OTU_vector)[5]` reads per OTU, lower quartile: `r fivenum(params$OTU_vector)[2]` upper quartile: `r fivenum(params$OTU_vector)[4]`). These OTUs belong to `r length(params$num_phyla)` phyla, `r length(params$num_family)` families, and `r length(params$num_genus)` genera based on using the RDP classifier with the GreenGenes database (v13.5).
+
+The percentage of zeroes in this dataset is `r params$perc_zero`
+
+
+`r params$table`
+
+
+
+
+# Overall Taxonomic Profile
+
+## Prevalent taxa 
+Prevalence refers to the proportion of samples in which a given taxa can be found. For example, a taxa found in 50% of the samples has a prevalence of 50%.
+```{r, echo=FALSE}
+var = params$voi
+mytab <- read.csv(paste0("Sequence_Analysis_Statistics_table_", var, ".tsv"), head=FALSE, sep="")
+knitr::kable(mytab[mytab$V3=="Phylum" & mytab$V4=="Prevalence", 1:2], digits=2, align=c(rep("l",4), rep("c",4)), col.names=c("Phylum", "Prevalence(%)"), caption="Most prevalent phyla", row.names=FALSE)
+knitr::kable(mytab[mytab$V3=="Family" & mytab$V4=="Prevalence", 1:2], digits=2, align=c(rep("l",4), rep("c",4)), col.names=c("Family", "Prevalence(%)"), caption="Most prevalent families", row.names=FALSE)
+knitr::kable(mytab[mytab$V3=="Genus" & mytab$V4=="Prevalence", 1:2], digits=2, align=c(rep("l",4), rep("c",4)), col.names=c("Genus", "Prevalence(%)"), caption="Most prevalent genera", row.names=FALSE)
+```
+
+
+## Abundant taxa 
+Abundance is the relative proportion of a taxa in the environment. For example, if 50% of 16S sequences in a sample belong to a given taxa, the relative abundance of that taxa is 50%. 
+```{r, echo=FALSE}
+var = params$voi
+mytab <- read.csv(paste0("Sequence_Analysis_Statistics_table_",var,".tsv"), head=FALSE, sep="")
+knitr::kable(mytab[mytab$V3=="Phylum" & mytab$V4=="Abundance", 1:2], digits=2, align=c(rep("l",4), rep("c",4)), col.names=c("Phylum", "Abundance(%)"), caption="Most abundant phyla", row.names=FALSE)
+knitr::kable(mytab[mytab$V3=="Family" & mytab$V4=="Abundance", 1:2], digits=2, align=c(rep("l",4), rep("c",4)), col.names=c("Family", "Abundance(%)"), caption="Most abundant families", row.names=FALSE)
+knitr::kable(mytab[mytab$V3=="Genus" & mytab$V4=="Abundance", 1:2], digits=2, align=c(rep("l",4), rep("c",4)), col.names=c("Genus", "Abundance(%)"), caption="Most abundant genera", row.names=FALSE)
+```
+
+
+# Stacked Barplots 
+
+## Grouped barplot
+<div>
+<object data="Taxa_Stacked_Barplot_Grouped_Compo__combine.pdf" type="application/pdf" width="900" height="600">
+</object>
+</div>
+
+## Individual barplot
+<div>
+<object data="Taxa_Stacked_Barplot_Overall_Compo_.pdf" type="application/pdf" width="900" height="600">
+</object>
+</div>
+
+
+
+# Heatmaps 
+
+## Proportion-based heatmap
+
+Proportional heatmaps tend to provide more weight to highly abundant taxa.
+
+<div>
+<object data="Taxa_Heatmap_Genus_All_P.pdf" type="application/pdf" width="900" height="600">
+</object>
+</div>
+
+## Binary-based heatmap (presence/absence)
+
+Presence/absence heatmaps tend to provide more weight to rare taxa.
+
+<div>
+<object data="Taxa_Heatmap_Genus_All_B.pdf" type="application/pdf" width="900" height="600">
+</object>
+</div>
+
+
+## Rank-based heatmap
+
+Ranked heatmaps tend to provide equal weight to highly abundant and rare taxa.
+
+<div>
+<object data="Taxa_Heatmap_Genus_All_R.pdf" type="application/pdf" width="900" height="600">
+</object>
+</div>
+

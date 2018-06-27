@@ -1,0 +1,78 @@
+---
+title: "Taxa Diversity and differential abundance analysis"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+params:
+  voi : ""
+---
+
+A taxonomic search using the GreenGenes 16S rDNA database allowed us to identify the taxonomic lineages of the OTUs.
+
+To identify differentially abundant taxa while accommodating covariates (e.g., sequencing batch) and the non-normality of the count data, we used a permutation test in which a regular linear model was fitted, with taxa proportion data as the outcome variable. To reduce the effects of outliers, taxa proportion data was square-root transformed. Statistical significance was assessed using 1,000 permutations with the F-stat as the test statistic. False discovery rate (FDR) control was used to correct for multiple testing, and FDR-adjusted p-values or q-values less than 10% were considered significant. This q-value cutoff was chosen to avoid missing important taxa with small effect sizes and is a significance threshold frequently utilized in human microbiome studies. 
+
+## Boxplot of differential taxa
+
+<div>
+<object data="Taxa_DifferentialAbundance_AbundanceBoxplot_sqrt_fdr_0.1_perm_.pdf" type="application/pdf" width="900" height="600">
+</object>
+</div>
+
+## Barplot of differential taxa
+<div>
+<object data="Taxa_DifferentialAbundance_AbundanceBarplot_sqrt_fdr_0.1_perm_.pdf" type="application/pdf" width="900" height="600">
+</object>
+</div>
+
+## Boxplot of effect size
+
+<div>
+<object data="Taxa_DifferentialAbundance_logPBarplot_fdr_0.1_perm_.pdf" type="application/pdf" width="900" height="600">
+</object>
+</div>
+
+## PCA biplot of differential taxa
+
+PCA biplot is producted by performing PCA on square-root transformed abundance data of these differential taxa. Arrows point to the direction of the PC region where the samples are more abundance in 
+
+<div>
+<object data="Taxa_Biplot_fdr_0.1_perm.pdf" type="application/pdf" width="900" height="600">
+</object>
+</div>
+
+#Heatmaps of differential taxa
+
+## Rank-based heatmap
+
+Ranked heatmaps tend to provide equal weight to highly abundant and rare taxa.
+
+<div>
+<object data="Taxa_Heatmap_All_fdr_0.1_Rank_perm.pdf" type="application/pdf" width="900" height="600">
+</object>
+</div>
+
+## Proportion-based heatmap
+
+Proportional heatmaps tend to provide more weight to highly abundant taxa
+
+<div>
+<object data="Taxa_Heatmap_All_fdr_0.1_perm.pdf" type="application/pdf" width="900" height="600">
+</object>
+</div>
+
+<!-- regular html comment 
+####Cladogram
+
+#####<div>
+#####<object data="Figures/cladogram.pdf" width="900" height="600">
+#####</object>
+#####</div>
+--> 
+## Test results
+```{r, echo=FALSE}
+mytab <- read.csv("Taxa_DifferentialAbundanceAnalysis_AllLevels_fdr_0.1_perm.csv", head=TRUE, sep=",")
+names(mytab)[1] <- "Taxa"
+knitr::kable(mytab[,c(1,2,3,4,5,8)], caption="Differential abundance analysis for all levels")
+```

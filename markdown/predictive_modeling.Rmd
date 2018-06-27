@@ -1,0 +1,71 @@
+---
+title: "Predictive modeling"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+params: 
+  voi : ""
+---
+
+
+Predictive modeling allows us to evaluate the presdictive power of the microbiota. The random forests algorithm was used to classify the samples into classes (i.e., Case or Control) based on their microbiota profile using the default parameters of the R implementation of the algorithm. Random forests, due to their non-parametric assumptions, are able to detect both linear and nonlinear effects and potential taxon-taxon interactions, thereby identifying taxa that discriminate Case and Control samples. 
+
+#Prediction performance
+The genus/species-level proportion data served as input data. Bootstrapping was used to assess the classification accuracy, where the bootstrapped samples were used as a training set and the unused samples as a test set. The classification performance was compared to "Guess", where the class label for the samples in the test set was predicted to be the label of the majority class in the training set, and Friedman rank-sum test was used to test the significance of the difference.
+
+##Classification error
+<div>
+<object data="Taxa_Random_forest_misclassification_barplot_Genus_.png" width="900" height="600">
+</object>
+</div>
+
+## Bootstrap-validated ROC curves
+
+<div>
+<object data="Taxa_Random_forest_ROC_Genus_.png" width="900" height="600">
+</object>
+</div>
+
+<div>
+<object data="Taxa_Random_forest_ROC_Species_.png" width="900" height="600">
+</object>
+</div>
+
+#Boruta feature selection
+
+Boruta variable selection was applied to select the most discriminatory taxa based on the importance values produced by random forests. The importance value of a genus was calculated based on the loss of accuracy by the random permutation fo the abundance of the taxon. The Boruta method spiked-in 'shadow' taxa (shuffled versions of the real taxa) to the real abundance data. This enabled us to assess the significance of the importance of a given taxa, i.e., whether it is discernable from the importance that may arise from random fluctuations (shadow taxa). Variable selection via a combination of random forests and Boruta is expected to be more powerful than univariate (marginal) tests, such as the Wilcoxon rank-sum test, in identifying important taxa that are individually weak but jointly strong predictors of the disease state.  
+
+#### Selected features (Genus)
+<div>
+<object data="Taxa_Random_forest_Boruta_Feature_Selection_Genus_.pdf" type="application/pdf" width="900" height="600">
+</object>
+</div>
+
+
+##Barplots
+### Aggregated samples
+<div>
+<object data="Taxa_Barplot_Aggregate_Genus_sqrt_BorutaFeatures_Tentative__.pdf" type="application/pdf" width="900" height="600">
+</object>
+</div>
+### Individual samples
+<div>
+<object data="Taxa_Barplot_Genus_P_BorutaFeatures_Tentative__.pdf" type="application/pdf" width="900" height="600">
+</object>
+</div>
+
+
+## Aggregated Boxplot
+<div>
+<object data="Taxa_Boxplot_Genus_P_BorutaFeatures_Tentative__.pdf" type="application/pdf" width="900" height="600">
+</object>
+</div>
+
+## ROC curve based on Boruta features
+<div>
+<object data="BorutaFeatures_Tentative_ROC_Genus_0.632+.pdf" type="application/pdf" width="900" height="600">
+</object>
+</div>
+
