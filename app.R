@@ -55,6 +55,7 @@ library(DT)
 library(iheatmapr)
 library(RColorBrewer)
 library(reshape2)
+library(plotly)
 options(shiny.maxRequestSize = 100*1024^2)
 shinyApp(
   ui = dashboardPage(
@@ -222,7 +223,7 @@ shinyApp(
                   box(width=9,
                       tabBox(width=9,
                              tabPanel("Ordination",
-                                      imageOutput("ordination", width=900, height=600)         
+                                      plotlyOutput("ordination", width=900, height=600)         
                              ),
                              tabPanel("Distance comparison",
                                       fluidRow(
@@ -1009,13 +1010,10 @@ shinyApp(
     })
     
     observeEvent(input$run_beta,{
-      output$ordination <- renderImage({
-        list(src=paste0("Beta_diversity_ordination_cmd_", input$category, ".png"),
-             contentType = 'image/png',
-             width = 900,
-             height = 600,
-             alt = "Beta diversity ordination")
-      }, deleteFile = FALSE)
+      
+      output$ordination <- renderPlotly({
+        ggplotly(beta$ord)
+      })
       
       output$distance_comparison_boxplot <- renderImage({
         list(src=paste0("Beta_diversity_btw_TRUE_wth_TRUE_no_strata_boxplot.png"),
