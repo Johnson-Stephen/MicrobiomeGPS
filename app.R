@@ -984,10 +984,6 @@ shinyApp(
 
       beta$ord <- generate_ordination2(data.rff$val, dist.rff$val, grp.name=input$category, strata=NULL, dist.names = input$b_measures)
       
-      progress$inc(1/n, detail = paste("Generating barplots..."))
-      
-      beta$barplot <- generate_distance_barplot(data.obj=data.rff$val, dist.obj=dist.rff$val, grp.name=input$category, within=T, strata=NULL)
-      
       progress$inc(1/n, detail = paste("Generating boxplots..."))
 
       beta$boxplot <- generate_distance_boxplot(data.rff$val, dist.rff$val, grp.name=input$category, within=T, strata=NULL)
@@ -1019,57 +1015,37 @@ shinyApp(
         beta$boxplot
       })
       
-      output$distance_comparison_barplot <- renderPlot({
-        beta$barplot
-      })
-      
-      output$hierarchical_clustering <- renderText({
-        name <- paste('<iframe style="height:600px; width:900px" src="plots/Beta_diversity_Hierachical_clustering_.pdf"></iframe>')
-        return(name)
-      })
-      
       output$permanova <- renderUI({
         out <- permanova_tab()
+        
         div(HTML(as.character(out)),class="shiny-html-output")
       })
       
-      output$mirkat <- renderUI({
-        out <- mirkat_tab()
-        div(HTML(as.character(out)),class="shiny-html-output")
-      })
+      #output$mirkat <- renderUI({
+      #  out <- mirkat_tab()
+      #  div(HTML(as.character(out)),class="shiny-html-output")
+      #})
       
-      output$betadisper <- renderUI({
-        out <- betadisper_tab()
-        div(HTML(as.character(out)),class="shiny-html-output")
-      })
+      #output$betadisper <- renderUI({
+      #  out <- betadisper_tab()
+      #  div(HTML(as.character(out)),class="shiny-html-output")
+      #})
       
     })
     
     permanova_tab <- function(){
-      lines <- readLines("Beta_diversity_PERMANOVA_test_.txt")
-      measures <- grep("distance: ", lines)
-      fixed_colns <- character(7)
-      start <- measures + 1
-      end <- start + 4
-      
+      measures <- input$b_measures
       tables <- list()
-      for (i in 1:length(measures)){
-        tab <- read.table(text = lines[start[i]:end[i]], fill=TRUE, header=TRUE)
-        table <- tab[,c(1,2,3,4,5)]
-        tables[[as.character(i)]] <- print(xtable(table, caption=paste(lines[measures[i]], "Permanova")), 
-                                           #align=c(rep("l",5), rep("c",5))),
-                                           type="html", 
-                                           html.table.attributes='class="data table table-bordered table-condensed"', 
-                                           caption.placement="top")
-      }
+      tables <- lapply(measures, function(x){
+        print(xtable(beta$permanova$permanova.obj[[x]], caption=paste(x, "Permanova")), 
+              type="html", 
+              html.table.attributes='class="data table table-bordered table-condensed"', 
+              caption.placement="top")
+      })
       
-      G_test <- grep("combining", lines)
-      G_start <- G_test+1
-      G_end <- G_test+3
-      tab <- read.table(text = lines[G_start:G_end], fill=TRUE, header=TRUE)
-      G_caption <- lines[G_test]
+      G_caption <- paste('PERMANOVA G test combining ', paste(measures, collapse=','))
       
-      tables[[as.character(length(measures)+1)]] <- print(xtable(tab, caption=G_caption),
+      tables[[as.character(length(measures)+1)]] <- print(xtable(beta$permanova$permanovaG.obj, caption=G_caption),
                                                           type="html", 
                                                           html.table.attributes='class="data table table-bordered table-condensed"', 
                                                           caption.placement="top")
