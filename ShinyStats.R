@@ -1341,26 +1341,18 @@ generate_distance_boxplot <- function (data.obj, dist.obj, dist.names=c('UniFrac
   }
   
   if (is.null(strata.name)) {
-    for (dist.name in dist.names) {
-      cat(dist.name, "...\n")
-      temp <- res.df[res.df$DistanceMetric == dist.name, ]
-      dodge <- position_dodge(width=0.95)		
-      obj1 <- ggplot(temp, aes(x=DistanceType, y=Distance, col=DistanceType)) + 
-        geom_boxplot(position=dodge, outlier.colour = NA) + 
-        #					geom_jitter(alpha=0.6, size=3.0,  position = position_jitter(w = 0.1)) +
-        labs(y=paste(dist.name, "Distance"), x='') +
-        theme(legend.position="none")
-    }
+    dodge <- position_dodge(width=0.95)		
+    obj1 <- ggplot(res.df, aes(x=DistanceType, y=Distance, col=DistanceType)) + 
+      geom_boxplot(position=dodge, outlier.colour = NA) + 
+      #					geom_jitter(alpha=0.6, size=3.0,  position = position_jitter(w = 0.1)) +
+      labs(x='') +
+      theme(legend.position="none") + facet_wrap(~DistanceMetric)
+    #}
   } else {
-    for (dist.name in dist.names) {
-      cat(dist.name, "...\n")
-      temp <- res.df[res.df$DistanceMetric == dist.name, ]
-      dodge <- position_dodge(width=0.95)		
-      obj1 <- ggplot(temp, aes(x=Strata, y=Distance, col=DistanceType)) + 
-        geom_boxplot(position=dodge, outlier.colour = NA) + 
-        labs(y=paste(dist.name, "Distance"), x=strata.name)
-      
-    }
+    dodge <- position_dodge(width=0.95)		
+    obj1 <- ggplot(res.df, aes(x=Strata, y=Distance, col=DistanceType)) + 
+      geom_boxplot(position=dodge, outlier.colour = NA) + 
+      labs(x=strata.name) + facet_wrap(~DistanceMetric)
   }
   return(obj1)
 }

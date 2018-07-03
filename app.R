@@ -228,9 +228,9 @@ shinyApp(
                              tabPanel("Distance comparison",
                                       fluidRow(
                                         h2("Distance comparison boxplots"),
-                                        imageOutput("distance_comparison_boxplot", width=900, height=600),
+                                        plotOutput("distance_comparison_boxplot", width=900, height=600),
                                         h2("Distance comparison barplots"),
-                                        imageOutput("distance_comparison_barplot", width=900, height=600)
+                                        plotOutput("distance_comparison_barplot", width=900, height=600)
                                       )
                              ),
                              tabPanel("Hierarchical clustering",
@@ -1015,21 +1015,13 @@ shinyApp(
         ggplotly(beta$ord)
       })
       
-      output$distance_comparison_boxplot <- renderImage({
-        list(src=paste0("Beta_diversity_btw_TRUE_wth_TRUE_no_strata_boxplot.png"),
-             contentType = 'image/png',
-             width = 900,
-             height = 600,
-             alt = "Distance comparison boxplot")
-      }, deleteFile = FALSE)
+      output$distance_comparison_boxplot <- renderPlot({
+        beta$boxplot
+      })
       
-      output$distance_comparison_barplot <- renderImage({
-        list(src=paste0("Beta_diversity_btw_TRUE_wth_TRUE_no_strata_barplot___.png"),
-             contentType = 'image/png',
-             width = 900,
-             height = 600,
-             alt = "Distance comparison barplot")
-      }, deleteFile = FALSE)
+      output$distance_comparison_barplot <- renderPlot({
+        beta$barplot
+      })
       
       output$hierarchical_clustering <- renderText({
         name <- paste('<iframe style="height:600px; width:900px" src="plots/Beta_diversity_Hierachical_clustering_.pdf"></iframe>')
