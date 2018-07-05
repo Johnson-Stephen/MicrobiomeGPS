@@ -228,13 +228,8 @@ shinyApp(
                              tabPanel("Distance comparison",
                                       fluidRow(
                                         h2("Distance comparison boxplots"),
-                                        plotOutput("distance_comparison_boxplot", width=900, height=600),
-                                        h2("Distance comparison barplots"),
-                                        plotOutput("distance_comparison_barplot", width=900, height=600)
+                                        plotOutput("distance_comparison_boxplot", width=900, height=600)
                                       )
-                             ),
-                             tabPanel("Hierarchical clustering",
-                                      htmlOutput("hierarchical_clustering")
                              ),
                              tabPanel("Beta Association",
                                       h2("Permanova test"),
@@ -1041,9 +1036,7 @@ shinyApp(
               html.table.attributes='class="data table table-bordered table-condensed"', 
               caption.placement="top")
       })
-      
       G_caption <- paste('PERMANOVA G test combining ', paste(measures, collapse=','))
-      
       tables[[as.character(length(measures)+1)]] <- print(xtable(beta$permanova$permanovaG.obj, caption=G_caption),
                                                           type="html", 
                                                           html.table.attributes='class="data table table-bordered table-condensed"', 
@@ -1055,7 +1048,6 @@ shinyApp(
     mirkat_tab <- function(){
       mirkat <- cbind(beta$mirkat$indiv, beta$mirkat$omni)
       colnames(mirkat) =  c("UniFrac", "GUniFrac", "WUniFrac", "BC", "Omnibus")
-      
       all <- print(xtable(mirkat, caption=paste("P-values for MiRKAT test combining UniFrac,GUniFrac,WUniFrac,BC"), digits=4),
                    type="html", 
                    html.table.attributes='class="data table table-bordered table-condensed"', 
@@ -1064,8 +1056,6 @@ shinyApp(
     }
     
     betadisper_tab <- function(){
-      
-      
       measures <- input$b_measures
       tables <- list()
       tables <- lapply(measures, function(x){
@@ -1076,26 +1066,6 @@ shinyApp(
       })
       all <- lapply(tables, paste0)
       return(all)
-      #lines <- readLines("Beta_diversity_BETADISPER_test.txt")
-      #caption = grep("Betadisper", lines)
-      #measures <- grep("distance: ", lines)
-      #fixed_colns <- character(6)
-      #start <- measures + 1
-      #end <- start + 2
-      #tables <- list()
-      
-      #for (i in 1:length(measures)){
-      #  tab <- read.table(text = lines[start[i]:end[i]], fill=TRUE, header=TRUE)
-      #  colns <- strsplit (lines[start[i]], "\\s+")[[1]]
-      #  fixed_colns <- c(" ", "Df", "Sum Sq", "Mean Sq", "F Value", "Pr(>F)")
-      #  colnames(tab) <- fixed_colns
-      #  measure <- lines[measures[i]]
-      #  tables[[as.character(i)]] <- print(xtable(tab[,c(1,2,3,4,5,6)], caption=paste(measure)),
-      #                                     type="html", 
-      #                                     html.table.attributes='class="data table table-bordered table-condensed"', 
-      #                                     caption.placement="top")
-      #}
-
     }
     
     output$taxa_text <- renderText({
