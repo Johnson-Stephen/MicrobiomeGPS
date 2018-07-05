@@ -56,6 +56,7 @@ library(iheatmapr)
 library(RColorBrewer)
 library(reshape2)
 library(plotly)
+library(GMPR)
 options(shiny.maxRequestSize = 100*1024^2)
 shinyApp(
   ui = dashboardPage(
@@ -1001,30 +1002,24 @@ shinyApp(
     })
     
     observeEvent(input$run_beta,{
-      
       output$ordination <- renderPlotly({
         ggplotly(beta$ord)
       })
-      
       output$distance_comparison_boxplot <- renderPlot({
         beta$boxplot
       })
-      
       output$permanova <- renderUI({
         out <- permanova_tab()
         div(HTML(as.character(out)),class="shiny-html-output")
       })
-      
       output$mirkat <- renderUI({
         out <- mirkat_tab()
         div(HTML(as.character(out)),class="shiny-html-output")
       })
-      
       output$betadisper <- renderUI({
         out <- betadisper_tab()
         div(HTML(as.character(out)),class="shiny-html-output")
       })
-      
     })
     
     permanova_tab <- function(){
@@ -1100,17 +1095,17 @@ shinyApp(
                                       cutoff=input$sig_level / 100, 
                                       ann=input$taxa_method)
       progress$inc(1/n, detail = paste("Beginning LEfSe analysis. Creating format..."))
-      create_lefse_format(data.rff$val, 
-                          diff.obj.rff, 
-                          grp.name=input$category, 
-                          cutoff=input$sig_level / 100, 
-                          prev=input$taxa_prev / 100, 
-                          minp=input$taxa_abund / 100, 
-                          mt.method=input$mult_test)
+      #create_lefse_format(data.rff$val, 
+      #                    diff.obj.rff, 
+      #                    grp.name=input$category, 
+      #                    cutoff=input$sig_level / 100, 
+      #                    prev=input$taxa_prev / 100, 
+      #                    minp=input$taxa_abund / 100, 
+      #                    mt.method=input$mult_test)
       progress$inc(1/n, detail = paste("Performing LEfSe analysis..."))
       #system("source runENV.sh")
       save(diff.obj.rff, file="DiffData.RData")
-      perform_lefse_analysis(data.rff$val, grp.name=input$category, ann=input$category)
+      #perform_lefse_analysis(data.rff$val, grp.name=input$category, ann=input$category)
     })
     
     observeEvent(input$run_taxa,{
@@ -1138,10 +1133,10 @@ shinyApp(
         name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_Heatmap_All_', input$mult_test, '_', input$sig_level / 100, '_Rank_', input$taxa_method ,'.pdf"></iframe>')
         return(name)
       })
-      output$cladogram <- renderText({
-        name <- paste0('<iframe style="height:600px; width:900px" src="plots/LefSe_', input$category, '/cladogram.pdf"></iframe>')
-        return(name)
-      })
+      #output$cladogram <- renderText({
+      #  name <- paste0('<iframe style="height:600px; width:900px" src="plots/LefSe_', input$category, '/cladogram.pdf"></iframe>')
+      #  return(name)
+      #})
       output$taxa_test_results <- renderUI({
         out <- taxa_test_tab()
         div(HTML(as.character(out)),class="shiny-html-output")
