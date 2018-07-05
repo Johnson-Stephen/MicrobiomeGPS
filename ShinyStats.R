@@ -2285,5 +2285,172 @@ GMPR <- function (comm, intersect.no=4, ct.min=2) {
   return(gmpr)
 }
 
+# Need to be further comprehensively tested
+# a. Speed up, finished!
+# b. Permutation method （response, covariate or residual permutation), residual will be default!
+# c. Revise - add permutation stratified by subject, finished!
+# Rev: 2017_02_02 permutation-based FDR control
+# Rev: 2017_02_13 Add LMM-based permutation for block.perm=TRUE (type I error is controled, but power study hasn't been comprehensively studied)
+# Rev: 2017_02_24 allow 'adj.name' to contain multiple covariates
+# Still need to address NA's, currently simply remove NA's
+permute_differential_analysis <- function (meta.dat, prop, grp.name, adj.name=NULL, strata=NULL, 
+                                           block.perm=FALSE, sqrt.trans=TRUE, resid.perm=TRUE, perm.no=999) {
+  # Square root transformation
+  # User should take care of the normalization, transformation and addressing outliers
+  if (sqrt.trans) {
+    Y <- sqrt(prop)
+  } else {
+    Y <- prop
+  }
+  row.names <- rownames(Y)
+  
+  if (!is.null(strata)) {
+    strata <- factor(strata)
+  }
+  
+  # Prepare model matrix
+  n <- ncol(prop)
+  I <- diag(n)
+  if (is.null(adj.name)) {
+    M0 <- model.matrix(~ 1, meta.dat)
+  } else {
+    df0 <- meta.dat[, c(adj.name), drop=F]
+    M0 <- model.matrix( ~., df0)
+  }
+  
+  #	P0 <- M0 %*% solve(t(M0) %*% M0) %*% t(M0)
+  
+  df1 <- meta.dat[, c(adj.name, grp.name), drop=F]
+  M1 <- model.matrix( ~., df1)
+  
+  # QR decompostion
+  qrX0 <- qr(M0, tol = 1e-07)
+  Q0 <- qr.Q(qrX0)
+  Q0 <- Q0[, 1:qrX0$rank, drop=FALSE]
+  
+  qrX1 <- qr(M1, tol = 1e-07)
+  Q1 <- qr.Q(qrX1)
+  Q1 <- Q1[, 1:qrX1$rank, drop=FALSE]
+  
+  # Got residual
+  if (resid.perm) {
+    if (!block.perm) {
+      # Permute the residual
+      if (is.null(adj.name)) {
+        Y <- t(resid(lm(as.formula(paste('t(Y) ~ 1')), meta.dat)))
+      } else {
+        Y <- t(resid(lm(as.formula(paste('t(Y) ~ ', paste(adj.name, collapse='+'))), meta.dat)))
+      }
+      
+    } else {
+      
+      if (is.null(strata)) {
+        stop('Block permutation requires strata!\n')
+      } else {
+        Y.r <- matrix(NA, nrow(Y), nlevels(strata))
+        Y.e <- Y
+        cat('Fitting linear mixed effects model ...\n')
+        for (j in 1:nrow(Y)) {
+          # Linear mixed effects model
+          yy <- Y[j, ]
+          meta.dat$yy <- yy
+          meta.dat$strata <- strata
+          if (is.null(adj.name)) {
+            obj <- lme(as.formula(paste('yy ~ 1')), random =~ 1 |  strata, data=meta.dat, method='ML')
+            # The order is the same as the levels
+            Y.r[j, ] <- random.effects(obj)[, 1]
+            Y.e[j, ] <- resid(obj)
+          } else {
+            obj <- lme(as.formula(paste('yy ~ ', paste(adj.name, collapse='+'))), random =~ 1 |  strata, data=meta.dat, method='ML')
+            Y.r[j, ] <- random.effects(obj)[, 1]
+            Y.e[j, ] <- resid(obj)
+          }
+        }
+        Y <- Y.r[, as.numeric(strata)] + Y.e
+        #			Y <- Y - rowMeans(Y)
+        #		    Y <- Y.e
+      }
+    }
+  }
+  
+  
+  
+  TSS <- rowSums(Y^2)
+  MSS1 <- rowSums((Y %*% Q1)^2)
+  MSS0 <- rowSums((Y %*% Q0)^2)  # Not necessary, it's zero
+  F0 <- (MSS1 - MSS0) /  (TSS - MSS1) 
+  
+  #	P1 <- M1 %*% solve(t(M1) %*% M1) %*% t(M1)
+  #	F0 <- diag(Y %*% (P1 - P0) %*% t(Y)) / diag(Y %*% (I - P1) %*% t(Y))
+  #	df3 <- df1
+  
+  if (block.perm == FALSE) {
+    perm.ind <- vegan:::getPermuteMatrix(perm.no, n, strata = strata)
+    perm.no <- nrow(perm.ind)
+  }
+  
+  cat('Permutation test ....\n')
+  Fp <- sapply(1:perm.no, function(i) {
+    if (i %% 100 == 0) cat('.')
+    if (block.perm == FALSE) {
+      Yp <- Y[, perm.ind[i, ]]
+    } else {
+      # Double permutation
+      strata.p <- factor(strata, levels=sample(levels(strata)))
+      Yp <- Y.r[, as.numeric(strata.p)] + Y.e[, sample(ncol(Y))]
+      #				    Yp <- Y.e[, sample(ncol(Y))]
+      #					Yp <- Yp - rowMeans(Yp)
+    }
+    
+    #				df3[, grp.name] <- sample(df1[, grp.name])
+    #				M1 <- model.matrix( ~., df3)
+    #				P1 <- M1 %*% solve(t(M1) %*% M1) %*% t(M1)
+    MSS1p <- rowSums((Yp %*% Q1)^2)
+    MSS0p <- rowSums((Yp %*% Q0)^2)    
+    if (block.perm == FALSE) {
+      TSSp <- TSS
+    } else {
+      TSSp <- rowSums(Yp^2)
+    }
+    (MSS1p - MSS0p) /  (TSSp - MSS1p) 
+  })
+  
+  
+  if (mean(is.na(F0)) >= 0.1) {
+    warning('More than 10% observed F stats have NA! Please check! \n')
+  }
+  
+  if (mean(is.na(Fp)) >= 0.1) {
+    warning('More than 10% permuted F stats have NA! Please check! \n')
+  }
+  
+  na.ind <- is.na(F0)
+  F0 <- F0[!na.ind]
+  Fp <- Fp[!na.ind, ]
+  
+  p.raw <- cbind(Fp >= F0, 1)
+  p.raw <- rowMeans(p.raw)
+  #	p.raw[is.na(p.raw)] <- 1   
+  
+  p.adj.fdr <- perm_fdr_adj(F0, Fp)
+  p.adj.fwer <- perm_fwer_adj(F0, Fp)
+  
+  # Pad back the NA values
+  pad <- function (vec, ind) {
+    vec0 <- numeric(length(ind))
+    vec0[!ind] <- vec
+    vec0[ind] <- NA
+    vec0
+  }
+  
+  F0 <- pad(F0, na.ind)
+  p.raw <- pad(p.raw, na.ind)
+  p.adj.fdr <- pad(p.adj.fdr, na.ind)
+  p.adj.fwer <- pad(p.adj.fwer, na.ind)
+  
+  names(F0) <- names(p.raw) <- names(p.adj.fdr) <- names(p.adj.fwer) <- row.names
+  return(list(F.stat=F0, p.raw=p.raw, p.adj.fdr=p.adj.fdr, p.adj.fwer=p.adj.fwer))
+  #	return(p.raw)
+}
 
 

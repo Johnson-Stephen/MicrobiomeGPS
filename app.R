@@ -56,7 +56,6 @@ library(iheatmapr)
 library(RColorBrewer)
 library(reshape2)
 library(plotly)
-library(GMPR)
 options(shiny.maxRequestSize = 100*1024^2)
 shinyApp(
   ui = dashboardPage(
