@@ -1017,14 +1017,13 @@ shinyApp(
       
       output$permanova <- renderUI({
         out <- permanova_tab()
-        
         div(HTML(as.character(out)),class="shiny-html-output")
       })
       
-      #output$mirkat <- renderUI({
-      #  out <- mirkat_tab()
-      #  div(HTML(as.character(out)),class="shiny-html-output")
-      #})
+      output$mirkat <- renderUI({
+        out <- mirkat_tab()
+        div(HTML(as.character(out)),class="shiny-html-output")
+      })
       
       #output$betadisper <- renderUI({
       #  out <- betadisper_tab()
@@ -1054,17 +1053,14 @@ shinyApp(
     }
     
     mirkat_tab <- function(){
-      lines <- readLines("Beta_diversity_MiRKAT_test_.txt")
-      caption = grep("MiRKAT", lines)
-      indiv_pval <- read.table(text = lines[4])
-      omnibus <- grep("Omnibus", lines)
-      omni_split <- strsplit (lines[omnibus], ":")[[1]]
-      colnames(indiv_pval) = c("Omnibus", "UniFrac", "WUniFrac", "BC")
-      indiv_pval$"Omnibus" <- omni_split[2]
-      all <- print(xtable(indiv_pval, caption=paste("P-values for",lines[caption])),
+      mirkat <- cbind(beta$mirkat$indiv, beta$mirkat$omni)
+      colnames(mirkat) =  c("UniFrac", "GUniFrac", "WUniFrac", "BC", "Omnibus")
+      
+      all <- print(xtable(mirkat, caption=paste("P-values for MiRKAT test combining UniFrac,GUniFrac,WUniFrac,BC"), digits=4),
                    type="html", 
                    html.table.attributes='class="data table table-bordered table-condensed"', 
                    caption.placement="top")
+      return(all)
     }
     
     betadisper_tab <- function(){

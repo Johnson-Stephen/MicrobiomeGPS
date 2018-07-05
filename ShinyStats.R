@@ -1669,9 +1669,6 @@ perform_mirkat_test <- function (data.obj, dist.obj, dist.names=c('UniFrac', 'GU
         
       }
     }
-    cat("\n")
-    sink()
-    
     pmat.all <- NULL
     for (dist.name in dist.names) {
       pmat <- parr[, , dist.name]
