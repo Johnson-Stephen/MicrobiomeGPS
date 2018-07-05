@@ -1025,10 +1025,10 @@ shinyApp(
         div(HTML(as.character(out)),class="shiny-html-output")
       })
       
-      #output$betadisper <- renderUI({
-      #  out <- betadisper_tab()
-      #  div(HTML(as.character(out)),class="shiny-html-output")
-      #})
+      output$betadisper <- renderUI({
+        out <- betadisper_tab()
+        div(HTML(as.character(out)),class="shiny-html-output")
+      })
       
     })
     
@@ -1064,27 +1064,38 @@ shinyApp(
     }
     
     betadisper_tab <- function(){
-      lines <- readLines("Beta_diversity_BETADISPER_test.txt")
-      caption = grep("Betadisper", lines)
-      measures <- grep("distance: ", lines)
-      fixed_colns <- character(6)
-      start <- measures + 1
-      end <- start + 2
-      tables <- list()
       
-      for (i in 1:length(measures)){
-        tab <- read.table(text = lines[start[i]:end[i]], fill=TRUE, header=TRUE)
-        colns <- strsplit (lines[start[i]], "\\s+")[[1]]
-        fixed_colns <- c(" ", "Df", "Sum Sq", "Mean Sq", "F Value", "Pr(>F)")
-        colnames(tab) <- fixed_colns
-        measure <- lines[measures[i]]
-        tables[[as.character(i)]] <- print(xtable(tab[,c(1,2,3,4,5,6)], caption=paste(measure)),
-                                           type="html", 
-                                           html.table.attributes='class="data table table-bordered table-condensed"', 
-                                           caption.placement="top")
-      }
+      
+      measures <- input$b_measures
+      tables <- list()
+      tables <- lapply(measures, function(x){
+        print(xtable(beta$disper[[x]], caption=paste(x, "BETADISPER")), 
+              type="html", 
+              html.table.attributes='class="data table table-bordered table-condensed"', 
+              caption.placement="top")
+      })
       all <- lapply(tables, paste0)
       return(all)
+      #lines <- readLines("Beta_diversity_BETADISPER_test.txt")
+      #caption = grep("Betadisper", lines)
+      #measures <- grep("distance: ", lines)
+      #fixed_colns <- character(6)
+      #start <- measures + 1
+      #end <- start + 2
+      #tables <- list()
+      
+      #for (i in 1:length(measures)){
+      #  tab <- read.table(text = lines[start[i]:end[i]], fill=TRUE, header=TRUE)
+      #  colns <- strsplit (lines[start[i]], "\\s+")[[1]]
+      #  fixed_colns <- c(" ", "Df", "Sum Sq", "Mean Sq", "F Value", "Pr(>F)")
+      #  colnames(tab) <- fixed_colns
+      #  measure <- lines[measures[i]]
+      #  tables[[as.character(i)]] <- print(xtable(tab[,c(1,2,3,4,5,6)], caption=paste(measure)),
+      #                                     type="html", 
+      #                                     html.table.attributes='class="data table table-bordered table-condensed"', 
+      #                                     caption.placement="top")
+      #}
+
     }
     
     output$taxa_text <- renderText({
