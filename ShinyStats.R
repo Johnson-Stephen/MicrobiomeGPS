@@ -1694,595 +1694,76 @@ perform_betadisper_test <- function (data.obj, dist.obj, dist.names=c('UniFrac',
   return(result)
 }
 
-# This function for nonparametric/permutaiton method
-# Rev: 2017_02_16  Add normalization method; Add transformation; Remove rarefaction (only output warnings);
-# Rev: 2017_10_30  Support filtering based on coefficient of variation
-# Rev: 2018_01_30 Add ct.min and handle NA size factor
-perform_differential_analysis <- function (data.obj, grp.name, adj.name=NULL, subject=NULL, 
-                                           taxa.levels=c('Phylum', 'Order', 'Class', 'Family', 'Genus', 'Species'),
-                                           method='perm', block.perm=FALSE, perm.no=999,
-                                           norm='GMPR', norm.level='Species', intersect.no=4, ct.min = 2,
-                                           transform='sqrt',
-                                           prev=0.1, minp=0.002, medianp=NULL, cv=NULL,
-                                           mt.method='fdr', cutoff=0.15, 
-                                           ann='', seed=123, ...) {
-  # To be completed
-  df <- data.obj$meta.dat
-  grp <- df[, grp.name]
+twopart.test <- function(x1, x2, zero.p=0.2) {
   
-  ind <- !is.na(grp)
-  data.obj <- subset_data(data.obj, ind)
-  grp <- grp[ind]
-  df <- df[ind, ]
+  n1 <- length(x1)
+  n2 <- length(x2)
+  p1 <- mean(x1 != 0)
+  p2 <- mean(x2 != 0)
+  m1 <- sum(x1 != 0)
+  m2 <- sum(x2 != 0)
+  p12 <- (m1 + m2) / (n1 + n2)
+  q12 <- 1 - p12
   
-  if ('Species' %in% taxa.levels & !('Species' %in% names(data.obj$abund.list))) {
-    data.obj$abund.list[['Species']] <- data.obj$otu.tab
-    rownames(data.obj$abund.list[['Species']]) <- paste0("OTU", rownames(data.obj$otu.tab), ":", 
-                                                         data.obj$otu.name[, 'Phylum'], ";", data.obj$otu.name[, 'Genus'])
-  }
-  
-  # Test for sequence-depth confounding
-  dep <- colSums(data.obj$otu.tab)
-  diff.seq.p <- summary(aov(dep ~ grp))[[1]][1, 'Pr(>F)']
-  if (!is.na(diff.seq.p) & diff.seq.p <= 0.05) {
-    warning(paste0(
-      '\nSignificant sequencing depth confounding with the variable of interest!\n',
-      'For nonparametric test/permutaiton test, there may be potentially many false postives (for those less prevalent taxa)!\n',
-      'Consider performing rarefaction first! (However, rarefaction will not completly solve the problem.)\n',
-      'May also try count-based models, which might have better false postive controls!\n'))
-  }
-  
-  # Calculate size.factor
-  if (norm == 'Precalculated') {
-    size.factor <- data.obj$size.factor
-  }
-  if (norm == 'GMPR') {
-    if (norm.level %in% c('OTU', 'Species')) {
-      tab <- data.obj$otu.tab
-    } else {
-      tab <- data.obj$abund.list[[norm.level]]
-    }
-    size.factor <- GMPR(tab, intersect.no, ct.min)
-    
-    # Rev: 2018_01_30
-    ind <- !is.na(size.factor)
-    data.obj <- subset_data(data.obj, ind)
-    grp <- grp[ind]
-    df <- df[ind, ]
-    size.factor <- size.factor[ind]
-  }	
-  if (norm == 'TSS') {
-    size.factor <- colSums(data.obj$otu.tab)
-  }
-  
-  # Method-dependent processing
-  if (is.null(method)) {
-    if (nlevels(grp) == 2) {
-      method <- 'wilcox'
-    } else {
-      method <- 'kruskal'
-    }
-  }
-  if (method == 'wilcox.pair') {
-    if (nlevels(grp) != 2) stop("Wilcox test requires two groups!\n")
-    if (is.null(subject)) stop("Paired wilcox needs subject information!\n")
-    subject <- factor(df[, subject])
-    ind1 <- ind2 <- NULL
-    for(sub in levels(subject)) {
-      temp1 <- which(as.numeric(grp) == 1 & subject == sub)
-      temp2 <- which(as.numeric(grp) == 2 & subject == sub)
-      if (length(temp1) != 0 & length(temp2) != 0) {
-        ind1 <- c(ind1, temp1[1])
-        ind2 <- c(ind2, temp2[1])
-      }
-      
-    }
-  }
-  
-  if (method == 'perm.pair') {
-    if (is.null(subject)) stop("Paired permutation test needs subject information!\n")
-    subject <- factor(df[, subject])
-  }
-  
-  if (method == 'perm') {
-    if (!is.null(subject)) {
-      subject <- factor(df[, subject])
-    } 
-  }
-  
-  if (is.factor(grp)) {
-    
-    pv.list <- qv.list <-  fc.list <- pc.list <- m.list <- nzm.list  <- prv.list <- list()
-    res.final <- NULL
-    for (LOI in taxa.levels) {
-      cat(LOI, "\n")
-      ct <- data.obj$abund.list[[LOI]]
-      
-      # Filtering
-      prop0 <- t(t(ct) / colSums(ct))
-      if (!is.null(prev)) {
-        prop0 <- prop0[rowSums(prop0!=0) > prev * ncol(prop0), , drop=FALSE]	
-        ct <- ct[rownames(prop0), , drop=FALSE]
-      }
-      if (!is.null(minp)) {
-        prop0 <- prop0[rowMaxs(prop0) > minp, , drop=FALSE]	
-        ct <- ct[rownames(prop0), , drop=FALSE]
-      }
-      
-      if (!is.null(medianp)) {
-        nz.mean <- apply(prop0, 1, function(x) median(x[x!=0]))
-        prop0 <- prop0[nz.mean > medianp, , drop=FALSE]	
-        ct <- ct[rownames(prop0), , drop=FALSE]
-      }
-      
-      if (!is.null(cv)) {
-        prop0 <- prop0[rowSds(prop0) / rowMeans(prop0) > cv, , drop=FALSE]	
-        ct <- ct[rownames(prop0), , drop=FALSE]
-      }
-      
-      # Normalization
-      prop <- t(t(ct) / size.factor)
-      
-      # Transformation - Others are possible/may be explored in the future
-      if (transform == 'sqrt') {
-        prop <- sqrt(prop)
-      }
-      
-      if (method == 'perm') {
-        set.seed(seed)
-        pv.de2 <- permute_differential_analysis(df, prop, grp.name, adj.name, strata=subject, block.perm=block.perm, sqrt.trans=FALSE, perm.no=perm.no)$p.raw
-        names(pv.de2) <- rownames(prop)
-      }
-      
-      # For legacy use
-      if (method == 'perm.pair') {
-        set.seed(seed)
-        pv.de2 <- permute_differential_analysis(df, prop, grp.name, adj.name, strata=subject, block.perm=FALSE, sqrt.trans=FALSE, perm.no=perm.no)$p.raw
-        names(pv.de2) <- rownames(prop)
-      }
-      
-      pv.vec <- m.vec <- nzm.vec <- prv.vec <-  fc.vec <- pc.vec <-  NULL
-      
-      for (taxon in rownames(prop)) {
-        taxon.abund <- prop[taxon, ]
-        taxon.abund0 <- prop0[taxon, ]
-        
-        pv <- fc <- pc <- m <- nzm <- prv <- NULL
-        if (method == 'wilcox') {
-          if (nlevels(grp) != 2) stop("Wilcox test requires two groups!\n")
-          pv <- wilcox.test(taxon.abund ~ grp)$p.value
-          
-        }
-        if (method == 'wilcox.pair') {
-          pv <- wilcox.test(taxon.abund[ind1], taxon.abund[ind2], paired=T)$p.value
-        }
-        if (method == 'twopart') {
-          if (nlevels(grp) != 2) stop("Two part test requires two groups!\n")
-          grp1 <- taxon.abund[as.numeric(grp)==1]
-          grp2 <- taxon.abund[as.numeric(grp)==2]
-          pv <- twopart.test(grp1, grp2)$p.value
-        }	
-        if (method == 'kruskal') {
-          if (nlevels(grp) <= 2) warning("Kruskal-wallis test requires three or more groups!\n")
-          pv <- kruskal.test(taxon.abund ~ grp)$p.value
-        }
-        #				if (method == 'DESeq2') {
-        #					pv <- pv.de2[taxon]
-        #				}
-        
-        if (method == 'perm') {
-          pv <- pv.de2[taxon]
-        }
-        
-        if (method == 'perm.pair') {
-          pv <- pv.de2[taxon]
-        }
-        m <- tapply(taxon.abund0, grp, function(x) mean(x))
-        nzm <- tapply(taxon.abund0, grp, function(x) mean(x[x != 0]))
-        prv <- tapply(taxon.abund0, grp, function(x) sum(x != 0))				
-        
-        # Rev: 2017_02_21 fc change baseline grp
-        if (nlevels(grp) == 2) {
-          grp.no <- table(grp)
-          fc <- log2(m[2] / m[1])
-          pc <- prv[2] / grp.no[2] / prv[1] * grp.no[1]
-        } else {
-          pc <- fc <- NA
-        }
-        
-        pv.vec <- rbind(pv.vec, pv)
-        fc.vec <- rbind(fc.vec, fc)
-        m.vec <- rbind(m.vec, m)
-        nzm.vec <- rbind(nzm.vec, nzm)
-        pc.vec <- rbind(pc.vec, pc)
-        prv.vec <- rbind(prv.vec, prv / table(grp))	
-      }
-      
-      
-      temp <- p.adjust(pv.vec[, 1], 'fdr')
-      
-      qv.vec <- matrix(temp, ncol=1)
-      
-      rownames(pv.vec) <- rownames(qv.vec) <- rownames(fc.vec) <- rownames(pc.vec) <- rownames(m.vec) <- rownames(nzm.vec) <- rownames(prv.vec) <- rownames(prop)
-      colnames(pv.vec) <- 'Pvalue'
-      colnames(qv.vec) <- 'Qvalue'
-      colnames(fc.vec) <- 'logFoldChange'
-      colnames(pc.vec) <- 'PrevalChange'
-      colnames(m.vec) <- paste(levels(grp), 'Mean')
-      colnames(nzm.vec) <- paste(levels(grp), 'nzMean')
-      colnames(prv.vec) <- paste(levels(grp), 'preval')
-      
-      pv.list[[LOI]] <- pv.vec
-      qv.list[[LOI]] <- qv.vec
-      fc.list[[LOI]] <- fc.vec
-      pc.list[[LOI]] <- pc.vec
-      m.list[[LOI]] <- m.vec
-      nzm.list[[LOI]] <- nzm.vec
-      prv.list[[LOI]] <- prv.vec
-      
-      res <- cbind(pv.vec, qv.vec, m.vec, nzm.vec, fc.vec, prv.vec, pc.vec)
-      rownames(res) <- rownames(prop)
-      
-      if (mt.method == 'fdr') {
-        res.final <- rbind(res.final, res[res[, 'Qvalue'] <= cutoff, , drop=F])
-      }
-      if (mt.method == 'raw') {
-        res.final <- rbind(res.final, res[res[, 'Pvalue'] <= cutoff, , drop=F])
-      }
-      
-    }
-    
-    if (!is.null(res.final)) {
-      colnames(res.final) <- colnames(res)
-    }
-    return(list(pv.list=pv.list, fc.list=fc.list, pc.list=pc.list, qv.list=qv.list, m.list=m.list, res=res, res.final=res.final))
+  if (q12 >= zero.p) {
+    Z <- (abs(p1 - p2) - (1/(2*n1) + 1/(2*n2))) / sqrt(p12 * q12 * (1/n1 + 1/n2))
+    x1 <- x1[x1!=0]
+    x2 <- x2[x2!=0]
+    R1 <- sum(rank(c(x1, x2))[1:length(x1)])
+    ti <- as.vector(table(c(x1, x2)))
+    W <- (abs(R1 - m1*(m1+m2+1)/2) - 1/2) / sqrt((m1*m2/12)*(m1+m2+1-sum(ti*(ti^2-1))/(m1+m2)/(m1+m2-1)))
+    X2 <- Z^2 + W^2
+    res <- list()
+    res$stat <- X2
+    res$p.value <- 1 - pchisq(X2, 2)
+    res$Z <- Z
+    res$W <- W
+    res$test <- 'TwoPart'
   } else {
-    if (is.null(method)) {
-      method <- 'Spearman'
-    }
-    # Continuous case - currently only has DESeq2 
-    pv.list <- qv.list <-  fc.list <-  m.list <- list()
-    res.final <- NULL
-    for (LOI in taxa.levels) {
-      cat(LOI, "\n")
-      ct <- data.obj$abund.list[[LOI]]
-      
-      # Filtering
-      prop0 <- t(t(ct) / colSums(ct))
-      if (!is.null(prev)) {
-        prop0 <- prop0[rowSums(prop0!=0) > prev * ncol(prop0), , drop=FALSE]	
-        ct <- ct[rownames(prop0), , drop=FALSE]
-      }
-      if (!is.null(minp)) {
-        prop0 <- prop0[rowMaxs(prop0) > minp, , drop=FALSE]	
-        ct <- ct[rownames(prop0), , drop=FALSE]
-      }
-      
-      if (!is.null(medianp)) {
-        nz.mean <- apply(prop0, 1, function(x) median(x[x!=0]))
-        prop0 <- prop0[nz.mean > medianp, , drop=FALSE]	
-        ct <- ct[rownames(prop0), , drop=FALSE]
-      }
-      
-      if (!is.null(cv)) {
-        prop0 <- prop0[rowSds(prop0) / rowMeans(prop0) > cv, , drop=FALSE]	
-        ct <- ct[rownames(prop0), , drop=FALSE]
-      }
-      
-      # Normalization
-      prop <- t(t(ct) / size.factor)
-      
-      # Transformation - Others are possible/may be explored in the future
-      if (transform == 'sqrt') {
-        prop <- sqrt(prop)
-      }
-      
-      if (method == 'perm') {
-        set.seed(seed)
-        pv.de2 <- permute_differential_analysis(df, prop, grp.name, adj.name, strata=subject, block.perm=block.perm, sqrt.trans=FALSE, perm.no=perm.no)$p.raw
-        names(pv.de2) <- rownames(prop)
-        # Place holder
-        fc.de2 <- sapply(1:nrow(prop), function(i) cor(prop[i, ], df[, grp.name], method='spearman'))
-      }
-      
-      if (method == 'Spearman') {
-        if (!is.null(adj.name)) {
-          stop("Spearman test can't adjust covariates!")
-        }
-        pv.de2 <- apply(prop, 1, function(x) {
-          cor.test(x, grp, method='spearman')$p.value
-        })
-        names(pv.de2) <- rownames(prop)
-        # Place holder
-        fc.de2 <- sapply(1:nrow(prop), function(i) cor(prop[i, ], df[, grp.name], method='spearman'))
-      }
-      pv.vec <- matrix(pv.de2, ncol=1)	
-      qv.vec <- matrix(p.adjust(pv.vec[, 1], 'fdr'), ncol=1)
-      fc.vec <- matrix(fc.de2, ncol=1)
-      m.vec <- matrix(rowMeans(prop0), ncol=1)
-      
-      rownames(pv.vec) <- rownames(qv.vec) <- rownames(fc.vec) <- rownames(m.vec)  <- rownames(prop)
-      colnames(pv.vec) <- 'Pvalue'
-      colnames(qv.vec) <- 'Qvalue'
-      colnames(fc.vec) <- 'SpearmanCorr'
-      colnames(m.vec) <- 'Mean'
-      
-      
-      pv.list[[LOI]] <- pv.vec
-      qv.list[[LOI]] <- qv.vec
-      fc.list[[LOI]] <- fc.vec
-      m.list[[LOI]] <- m.vec
-      
-      
-      res <- cbind(m.vec, fc.vec, pv.vec, qv.vec)
-      rownames(res) <- rownames(prop)
-      
-      if (mt.method == 'fdr') {
-        res.final <- rbind(res.final, res[res[, 'Qvalue'] <= cutoff, , drop=F])
-      }
-      if (mt.method == 'raw') {
-        res.final <- rbind(res.final, res[res[, 'Pvalue'] <= cutoff, , drop=F])
-      }
-    }
-    
-    if (!is.null(res.final)) {
-      colnames(res.final) <- colnames(res)
-    }
-    return(list(pv.list=pv.list, fc.list=fc.list, qv.list=qv.list, m.list=m.list, res.final=res.final, res=res))
+    res <- wilcox.test(x1, x2)
+    res$test <- 'Wilcox'
   }
-  
+  res
 }
 
-# Rev: 2016_11_25 Uniqufy
-# Rev: 2016_04_18 strata
-
-visualize_differential_analysis <- function (data.obj, diff.obj,  grp.name=NULL, strata=NULL, test='Nonpara', mt.method='fdr', scale='sqrt', cutoff=0.15,
-                                             taxa.levels=c('Phylum', 'Family', 'Genus'), ord=TRUE, eff.type='logP', indivplot=TRUE, colFnsC=NULL, colFnsF=NULL, subject=NULL,
-                                             xsize=10, ann='', hei1=NULL, wid1=NULL, hei2=NULL, wid2=NULL) {
-  
-  # uniquefy names
-  # For backward compatibility. Newer version will not need this and below. The old version has 'unclassified' which leads to duplicate names.
-  # Newer version has 'Unclassified'. Case difference.
-  
-  # Check whether there is name duplication
-  check.names <- NULL
-  results <- list()
-  obj0 <- diff.obj[[1]]
-  for (level in names(obj0)) {
-    obj <- obj0[[level]]
-    # rownames(obj) <- gsub('unclassified', paste0('Unclassified',substr(level, 1, 1)), rownames(obj))
-    check.names <- c(check.names, rownames(obj))
+getPermuteMatrix <- function (perm, N, strata = NULL) 
+{
+  if (length(perm) == 1) {
+    perm <- how(nperm = perm)
   }
-  
-  if (sum(table(check.names) >= 2)) {
-    data.obj <- uniquefy_taxa_names(data.obj)
-    
-    for (name1 in names(diff.obj)) {
-      obj0 <- diff.obj[[name1]]
-      for (level in names(obj0)) {
-        obj <- obj0[[level]]
-        # rownames(obj) <- gsub('unclassified', paste0('Unclassified',substr(level, 1, 1)), rownames(obj))
-        rownames(obj) <- paste0(rownames(obj), substr(level, 1, 1))
-        obj0[[level]] <- obj
-      }
-      diff.obj[[name1]] <- obj0
-    }
-    
+  if (!missing(strata) && !is.null(strata)) {
+    if (inherits(perm, "how") && is.null(getBlocks(perm))) 
+      setBlocks(perm) <- strata
   }
-  
-  #pv.list <- diff.obj$pv.list
-  fc.list <- diff.obj$fc.list
-  qv.list <- diff.obj$qv.list
-  pv.list <- diff.obj$pv.list
-  if (test == 'Para') {
-    fc.lc.list <- diff.obj$fc.lc.list
-    fc.uc.list <- diff.obj$fc.uc.list
-  }
-  df <- data.obj$meta.dat
-  grp <- df[, grp.name]
-  
-  ind <- !is.na(grp)
-  data.obj <- subset_data(data.obj, ind)
-  grp <- grp[ind]
-  df <- df[ind, ]
-  
-  prop <- NULL
-  eff <- eff.lc <- eff.uc <- NULL
-  taxa.names <- NULL
-  if (is.null(taxa.levels)) {
-    LOIs <- names(qv.list)
-  } else {
-    LOIs <- taxa.levels
-    if (sum(!(taxa.levels %in% names(qv.list)))) {
-      stop('Taxa levels are not contained in differential abundance analysis results!\n')
-    }
-  }
-  for (LOI in LOIs) {
-    pv.vec <- pv.list[[LOI]]
-    fc.vec <- fc.list[[LOI]]
-    #qv.vec <- qvalue(pv.vec[, 1])$qvalues
-    qv.vec <- qv.list[[LOI]]
-    
-    if (test == 'Para') {
-      fc.lc.vec <- fc.lc.list[[LOI]]
-      fc.uc.vec <- fc.uc.list[[LOI]]
-    }
-    
-    if (mt.method == 'fdr') {
-      taxa.name <- rownames(qv.vec)[qv.vec <= cutoff]
-      taxa.name <- taxa.name[!is.na(taxa.name)]
-    }
-    
-    if (mt.method == 'raw') {
-      taxa.name <- rownames(pv.vec)[pv.vec <= cutoff]
-      taxa.name <- taxa.name[!is.na(taxa.name)]
-    }
-    
-    if (length(taxa.name) != 0) {
-      prop0 <- data.obj$abund.list[[LOI]]
-      prop0 <- t(t(prop0) / colSums(prop0))
-      prop0 <-  prop0[taxa.name, , drop=F]
-      if (ord == TRUE) {
-        prop0 <- prop0[rev(order(rowMeans(prop0))), , drop=F]
-      }
-      prop <- rbind(prop, prop0)
-      # currently using fold change
-      if (test == 'Para') {
-        eff <- rbind(eff, fc.vec[taxa.name, , drop=F])
-        eff.lc <- rbind(eff.lc, fc.lc.vec[taxa.name, , drop=F])
-        eff.uc <- rbind(eff.uc, fc.uc.vec[taxa.name, , drop=F])
-      } else {
-        if (eff.type == 'LFC') {
-          eff <- c(eff, fc.vec[taxa.name, ])
-        }
-        if (eff.type == 'logP') {
-          eff <- c(eff, sign(fc.vec[taxa.name, ]) * (-log10(pv.vec[taxa.name, ])))
-        }
-        
-      }
-      taxa.names <- c(taxa.names, taxa.name)
-    }
-  }
-  
-  if (length(taxa.names) == 0) {
-    cat('No differential taxa! \n')
-  } else {
-    if (length(taxa.names) >= 2) {
-      if (is.null(wid1) | is.null(hei1)) {
-        wid1 <- 7 * ifelse(nrow(prop) / 30 < 1, 1, nrow(prop) / 30)
-        hei1 <- 7
-      }
-      
-      if (!is.null(grp.name)) {
-        results$barplot_aggregate <- taxa_barplot_aggregate(prop, df, grp.name, strata, scale, xsize)
-        
-        
-        results$boxplot_aggregate <- taxa_boxplot_aggregate(prop, df, grp.name, strata, scale, xsize) 
-
-      }
-      
-      # currently fold change
-      if (test == 'Para') {
-        rownames(eff) <- rownames(eff.lc) <- rownames(eff.uc) <- taxa.names
-        for (k in 1:ncol(eff)) {
-          fold.dat.plot1 <- data.frame(Estimate=eff[, k], LCI=eff.lc[, k], UCI=eff.uc[, k], IV=taxa.names)
-          result$effect_size <- plot_effect_size2(fold.dat.plot1)
-        }
-      } else {
-        if (!is.na(eff[1])) {
-          names(eff) <- taxa.names
-          eff <- eff[!is.na(eff) & is.finite(eff)]
-          eff <- sort(eff)
-          taxa.names2 <- names(eff)
-          if (is.null(wid2) | is.null(hei2)) {
-            hei2 <- 4 + length(taxa.names2) / 20 * 3 
-            wid2 <- 6
-          }
-          if (eff.type == 'LFC') {
-            result$effect_size <- plot_effect_size(taxa.names2, eff, levels(grp)[1], levels(grp)[2], ylab='Log2 fold change')
-          }
-          if (eff.type == 'Spearman') {
-            result$effect_size <- plot_effect_size(taxa.names2, eff, levels(grp)[1], levels(grp)[2], ylab='Spearman correlation')
-          }
-          if (eff.type == 'logP') {
-            result$effect_size <- plot_effect_size(taxa.names2, eff, levels(grp)[1], levels(grp)[2], ylab='-log10(P)')
-          }					
-        }
-      }
-      
-      # create heatmp
-      #			taxa.names2 <- taxa.names[!grepl('unclassified', taxa.names, ignore.case=T)]
-      if (!is.null(grp.name)) {
-        
-        generate_taxa_heatmap(data.obj, taxa.levels='All', sam.ord=order(grp), taxa=taxa.names, meta.info=c(grp.name, strata), Colv=F, dendrogram='row', 
-                              ann=paste0(mt.method, '_', cutoff, '_', ann, '_Unclustered'), colFnsC=colFnsC, colFnsF=colFnsF)
-        generate_taxa_heatmap(data.obj, taxa.levels='All', taxa=taxa.names, meta.info=c(grp.name, strata),  ann=paste0(mt.method, '_', cutoff, '_', ann), colFnsC=colFnsC, colFnsF=colFnsF)
-        generate_taxa_heatmap(data.obj, taxa.levels='All', taxa=taxa.names, meta.info=c(grp.name, strata), data.type='R', ann=paste0(mt.method, '_', cutoff, '_Rank_', ann), colFnsC=colFnsC, colFnsF=colFnsF)
-        try(
-          results$biplot <- generate_taxa_biplot(data.obj, taxa=taxa.names, trans='sqrt', grp.name, ann=paste0(mt.method, '_', cutoff, '_', ann), varname.size = 1.5)	
-        )	
-      }
-    }
-    if (!is.null(grp.name)) {
-      # Individual plots
-      if (indivplot == TRUE) {
-        generate_taxa_boxplot(data.obj, grp.name=grp.name, taxa.levels='All', strata = strata, taxa.name=taxa.names, ann=paste0(mt.method, '_', cutoff, '_', ann))
-        if (!is.null(subject)) {
-          generate_taxa_boxplot(data.obj, grp.name=grp.name, taxa.levels='All', strata = strata, taxa.name=taxa.names, subject=subject, ann=paste0(mt.method, '_', cutoff, '_', ann, '_Paired'))
-        }
-        generate_taxa_boxplot(data.obj, grp.name=grp.name, taxa.levels='All', strata = strata, taxa.name=taxa.names, scale='binary', ann=paste0(mt.method, '_', cutoff, '_', ann))
-        generate_taxa_barplot(data.obj, grp.name=grp.name, taxa.levels='All', strata = strata, taxa.name=taxa.names, ann=paste0(mt.method, '_', cutoff, '_', ann))
-      }
-      
-    }
-  }
-  return(results)
+  if (inherits(perm, "how")) 
+    perm <- shuffleSet(N, control = perm)
+  if (is.null(attr(perm, "control"))) 
+    attr(perm, "control") <- structure(list(within = list(type = "supplied matrix"), 
+                                            nperm = nrow(perm)), class = "how")
+  perm
 }
 
-# New: 2017_02_07
-GMPR <- function (comm, intersect.no=4, ct.min=2) {
-  # Computes the GMPR size factor
-  #
-  # Args:
-  #   comm: a matrix of counts, row - features (OTUs, genes, etc) , column - sample
-  #   intersect.no: the minimum number of shared features between sample pair, where the ratio is calculated
-  #   ct.min: the minimum number of counts required to calculate ratios ct.min = 5 has better results
-  
-  #
-  # Returns:
-  #   a list that contains:
-  #      gmpr： the GMPR size factors for all samples; Samples with distinct sets of features will be output as NA.
-  #      nss:   number of samples with significant sharing (> intersect.no) including itself
-  
-  # mask counts < ct.min
-  comm[comm < ct.min] <- 0
-  
-  if (is.null(colnames(comm))) {
-    colnames(comm) <- paste0('S', 1:ncol(comm))
-  }
-  
-  cat('Begin GMPR size factor calculation ...\n')
-  
-  comm.no <- numeric(ncol(comm))
-  gmpr <- sapply(1:ncol(comm),  function(i) {		
-    if (i %% 50 == 0) {
-      cat(i, '\n')
-    }
-    x <- comm[, i]
-    # Compute the pairwise ratio
-    pr <- x / comm
-    # Handling of the NA, NaN, Inf
-    pr[is.nan(pr) | !is.finite(pr) | pr == 0] <- NA
-    # Counting the number of non-NA, NaN, Inf
-    incl.no <- colSums(!is.na(pr))		
-    # Calculate the median of PR
-    pr.median <- colMedians(pr, na.rm=TRUE)
-    # Record the number of samples used for calculating the GMPR
-    comm.no[i] <<- sum(incl.no >= intersect.no)
-    # Geometric mean of PR median
-    if (comm.no[i] > 1) {
-      return(exp(mean(log(pr.median[incl.no >= intersect.no]))))
-    } else {
-      return(NA)
-    }
-  }
-  )
-  
-  if (sum(is.na(gmpr))) {
-    warning(paste0('The following samples\n ', paste(colnames(comm)[is.na(gmpr)], collapse='\n'), 
-                   '\ndo not share at least ', intersect.no, ' common taxa with the rest samples! ',
-                   'For these samples, their size factors are set to be NA! \n', 
-                   'You may consider removing these samples since they are potentially outliers or negative controls!\n',
-                   'You may also consider decreasing the minimum number of intersecting taxa and rerun the procedure!\n'))
-  }
-  
-  cat('Completed!\n')
-  cat('Please watch for the samples with limited sharing with other samples based on NSS! They may be outliers! \n')
-  attr(gmpr, 'NSS') <- comm.no
-  # Rev: 2017_09_07
-  gmpr <- gmpr * median(colSums(comm))
-  names(gmpr) <- colnames(comm)
-  return(gmpr)
+perm_fdr_adj <- function (F0, Fp) {
+  ord <- order(F0, decreasing = T)
+  F0 <- F0[ord]
+  perm.no <- ncol(Fp)
+  Fp <- as.vector(Fp)
+  Fp <- Fp[!is.na(Fp)]
+  Fp <- sort(c(Fp, F0), decreasing = F)
+  n <- length(Fp)
+  m <- length(F0)
+  FPN <- (n + 1) - match(F0, Fp) - 1:m
+  p.adj.fdr <- FPN / perm.no / (1:m)
+  #		p.adj.fdr <- sapply(F0, function(x) sum(Fp >= 
+  #									x, na.rm=TRUE) / perm.no)/(1:length(F0))
+  p.adj.fdr <- pmin(1, rev(cummin(rev(p.adj.fdr))))[order(ord)]
+}
+
+perm_fwer_adj <- function (F0, Fp) {
+  ord <- order(F0, decreasing = T)
+  F0 <- F0[ord]
+  col.max <- colMaxs(Fp, na.rm=TRUE)
+  p.adj.fwer <- sapply(F0, function(x) mean(col.max >= x))[order(ord)]
 }
 
 # Need to be further comprehensively tested
@@ -2452,5 +1933,1426 @@ permute_differential_analysis <- function (meta.dat, prop, grp.name, adj.name=NU
   return(list(F.stat=F0, p.raw=p.raw, p.adj.fdr=p.adj.fdr, p.adj.fwer=p.adj.fwer))
   #	return(p.raw)
 }
+#
 
 
+# New: 2017_08_17 Add a new variant of PERMANOVA with matrix decomposition
+# Partially validated
+permanova2 <- function (meta.dat, D, grp.name, adj.name=NULL, strata=NULL, 
+                        block.perm=FALSE, resid.perm=TRUE, perm.no=999, eig = c('All', 'Positive')) {
+  
+  eig <- match.arg(eig)
+  # Square root transformation
+  # User should take care of the normalization, transformation and addressing outliers
+  
+  D <- as.matrix(D)^2
+  n <- nrow(D)
+  G <- mean(D) + D - rowMeans(D) - matrix(rep(1, n), ncol=1) %*% colMeans(D)
+  
+  eig.obj <- eigen(G, symm=TRUE)
+  
+  if (eig == 'All') {
+    Y <- eig.obj$vectors
+    lambda <- eig.obj$values
+  }
+  
+  if (eig == 'Positive') {
+    lambda <- eig.obj$values
+    ind <- lambda > 1e-6
+    lambda <- lambda[ind]
+    Y <- Y[, ind, drop = FALSE]
+  }
+  
+  Y <- t(Y)
+  
+  if (!is.null(strata)) {
+    strata <- factor(strata)
+  }
+  
+  # Prepare model matrix
+  n <- ncol(Y)
+  I <- diag(n)
+  if (is.null(adj.name)) {
+    M0 <- model.matrix(~ 1, meta.dat)
+  } else {
+    df0 <- meta.dat[, c(adj.name), drop=F]
+    M0 <- model.matrix( ~., df0)
+  }
+  
+  #	P0 <- M0 %*% solve(t(M0) %*% M0) %*% t(M0)
+  
+  df1 <- meta.dat[, c(adj.name, grp.name), drop=F]
+  M1 <- model.matrix( ~., df1)
+  
+  # QR decompostion
+  qrX0 <- qr(M0, tol = 1e-07)
+  Q0 <- qr.Q(qrX0)
+  Q0 <- Q0[, 1:qrX0$rank, drop=FALSE]
+  
+  qrX1 <- qr(M1, tol = 1e-07)
+  Q1 <- qr.Q(qrX1)
+  Q1 <- Q1[, 1:qrX1$rank, drop=FALSE]
+  
+  # Got residual
+  if (resid.perm) {
+    if (!block.perm) {
+      # Permute the residual
+      if (is.null(adj.name)) {
+        Y <- t(resid(lm(as.formula(paste('t(Y) ~ 1')), meta.dat)))
+      } else {
+        Y <- t(resid(lm(as.formula(paste('t(Y) ~ ', paste(adj.name, collapse='+'))), meta.dat)))
+      }
+      
+    } else {
+      
+      if (is.null(strata)) {
+        stop('Block permutation requires strata!\n')
+      } else {
+        Y.r <- matrix(NA, nrow(Y), nlevels(strata))
+        Y.e <- Y
+        #				cat('Fitting linear mixed effects model ...\n')
+        for (j in 1:nrow(Y)) {
+          # Linear mixed effects model
+          yy <- Y[j, ]
+          meta.dat$yy <- yy
+          meta.dat$strata <- strata
+          if (is.null(adj.name)) {
+            obj <- lme(as.formula(paste('yy ~ 1')), random =~ 1 |  strata, data=meta.dat, method='ML')
+            # The order is the same as the levels
+            Y.r[j, ] <- random.effects(obj)[, 1]
+            Y.e[j, ] <- resid(obj)
+          } else {
+            obj <- lme(as.formula(paste('yy ~ ', paste(adj.name, collapse='+'))), random =~ 1 |  strata, data=meta.dat, method='ML')
+            Y.r[j, ] <- random.effects(obj)[, 1]
+            Y.e[j, ] <- resid(obj)
+          }
+        }
+        Y <- Y.r[, as.numeric(strata)] + Y.e
+        #			Y <- Y - rowMeans(Y)
+        #		    Y <- Y.e
+      }
+    }
+  }
+  
+  
+  
+  TSS <- rowSums(Y^2)
+  MSS1 <- rowSums((Y %*% Q1)^2)
+  MSS0 <- rowSums((Y %*% Q0)^2)  # Not necessary, it's zero
+  F0 <- sum(lambda * (MSS1 - MSS0)) /  sum(lambda * (TSS - MSS1))
+  
+  #	P1 <- M1 %*% solve(t(M1) %*% M1) %*% t(M1)
+  #	F0 <- diag(Y %*% (P1 - P0) %*% t(Y)) / diag(Y %*% (I - P1) %*% t(Y))
+  #	df3 <- df1
+  
+  if (block.perm == FALSE) {
+    perm.ind <- vegan:::getPermuteMatrix(perm.no, n, strata = strata)
+    perm.no <- nrow(perm.ind)
+  }
+  
+  #	cat('Permutation test ....\n')
+  Fp <- sapply(1:perm.no, function(i) {
+    #				if (i %% 100 == 0) cat('.')
+    if (block.perm == FALSE) {
+      Yp <- Y[, perm.ind[i, ]]
+    } else {
+      # Double permutation
+      strata.p <- factor(strata, levels=sample(levels(strata)))
+      Yp <- Y.r[, as.numeric(strata.p)] + Y.e[, sample(ncol(Y))]
+      #				    Yp <- Y.e[, sample(ncol(Y))]
+      #					Yp <- Yp - rowMeans(Yp)
+    }
+    
+    #				df3[, grp.name] <- sample(df1[, grp.name])
+    #				M1 <- model.matrix( ~., df3)
+    #				P1 <- M1 %*% solve(t(M1) %*% M1) %*% t(M1)
+    MSS1p <- rowSums((Yp %*% Q1)^2)
+    MSS0p <- rowSums((Yp %*% Q0)^2)    
+    if (block.perm == FALSE) {
+      TSSp <- TSS
+    } else {
+      TSSp <- rowSums(Yp^2)
+    }
+    sum(lambda * (MSS1p - MSS0p)) / sum(lambda * (TSSp - MSS1p)) 
+  })
+  
+  p.value <- mean(c(Fp >= F0, 1))
+  
+  return(list(f0 = F0, f.perms = Fp, p.value = p.value))
+  #	return(p.raw)
+}
+
+
+# New: 2017_02_07
+GMPR <- function (comm, intersect.no=4, ct.min=2) {
+  # Computes the GMPR size factor
+  #
+  # Args:
+  #   comm: a matrix of counts, row - features (OTUs, genes, etc) , column - sample
+  #   intersect.no: the minimum number of shared features between sample pair, where the ratio is calculated
+  #   ct.min: the minimum number of counts required to calculate ratios ct.min = 5 has better results
+  
+  #
+  # Returns:
+  #   a list that contains:
+  #      gmpr： the GMPR size factors for all samples; Samples with distinct sets of features will be output as NA.
+  #      nss:   number of samples with significant sharing (> intersect.no) including itself
+  
+  # mask counts < ct.min
+  comm[comm < ct.min] <- 0
+  
+  if (is.null(colnames(comm))) {
+    colnames(comm) <- paste0('S', 1:ncol(comm))
+  }
+  
+  cat('Begin GMPR size factor calculation ...\n')
+  
+  comm.no <- numeric(ncol(comm))
+  gmpr <- sapply(1:ncol(comm),  function(i) {		
+    if (i %% 50 == 0) {
+      cat(i, '\n')
+    }
+    x <- comm[, i]
+    # Compute the pairwise ratio
+    pr <- x / comm
+    # Handling of the NA, NaN, Inf
+    pr[is.nan(pr) | !is.finite(pr) | pr == 0] <- NA
+    # Counting the number of non-NA, NaN, Inf
+    incl.no <- colSums(!is.na(pr))		
+    # Calculate the median of PR
+    pr.median <- colMedians(pr, na.rm=TRUE)
+    # Record the number of samples used for calculating the GMPR
+    comm.no[i] <<- sum(incl.no >= intersect.no)
+    # Geometric mean of PR median
+    if (comm.no[i] > 1) {
+      return(exp(mean(log(pr.median[incl.no >= intersect.no]))))
+    } else {
+      return(NA)
+    }
+  }
+  )
+  
+  if (sum(is.na(gmpr))) {
+    warning(paste0('The following samples\n ', paste(colnames(comm)[is.na(gmpr)], collapse='\n'), 
+                   '\ndo not share at least ', intersect.no, ' common taxa with the rest samples! ',
+                   'For these samples, their size factors are set to be NA! \n', 
+                   'You may consider removing these samples since they are potentially outliers or negative controls!\n',
+                   'You may also consider decreasing the minimum number of intersecting taxa and rerun the procedure!\n'))
+  }
+  
+  cat('Completed!\n')
+  cat('Please watch for the samples with limited sharing with other samples based on NSS! They may be outliers! \n')
+  attr(gmpr, 'NSS') <- comm.no
+  # Rev: 2017_09_07
+  gmpr <- gmpr * median(colSums(comm))
+  names(gmpr) <- colnames(comm)
+  return(gmpr)
+}
+
+# This function for nonparametric/permutaiton method
+# Rev: 2017_02_16  Add normalization method; Add transformation; Remove rarefaction (only output warnings);
+# Rev: 2017_10_30  Support filtering based on coefficient of variation
+# Rev: 2018_01_30 Add ct.min and handle NA size factor
+perform_differential_analysis <- function (data.obj, grp.name, adj.name=NULL, subject=NULL, 
+                                           taxa.levels=c('Phylum', 'Order', 'Class', 'Family', 'Genus', 'Species'),
+                                           method='perm', block.perm=FALSE, perm.no=999,
+                                           norm='GMPR', norm.level='Species', intersect.no=4, ct.min = 2,
+                                           transform='sqrt',
+                                           prev=0.1, minp=0.002, medianp=NULL, cv=NULL,
+                                           mt.method='fdr', cutoff=0.15, 
+                                           ann='', seed=123, ...) {
+  # To be completed
+  df <- data.obj$meta.dat
+  grp <- df[, grp.name]
+  res.final <- NULL
+  ind <- !is.na(grp)
+  data.obj <- subset_data(data.obj, ind)
+  grp <- grp[ind]
+  df <- df[ind, ]
+  
+  if ('Species' %in% taxa.levels & !('Species' %in% names(data.obj$abund.list))) {
+    data.obj$abund.list[['Species']] <- data.obj$otu.tab
+    rownames(data.obj$abund.list[['Species']]) <- paste0("OTU", rownames(data.obj$otu.tab), ":", 
+                                                         data.obj$otu.name[, 'Phylum'], ";", data.obj$otu.name[, 'Genus'])
+  }
+  
+  # Test for sequence-depth confounding
+  dep <- colSums(data.obj$otu.tab)
+  diff.seq.p <- summary(aov(dep ~ grp))[[1]][1, 'Pr(>F)']
+  if (!is.na(diff.seq.p) & diff.seq.p <= 0.05) {
+    warning(paste0(
+      '\nSignificant sequencing depth confounding with the variable of interest!\n',
+      'For nonparametric test/permutaiton test, there may be potentially many false postives (for those less prevalent taxa)!\n',
+      'Consider performing rarefaction first! (However, rarefaction will not completly solve the problem.)\n',
+      'May also try count-based models, which might have better false postive controls!\n'))
+  }
+  
+  # Calculate size.factor
+  if (norm == 'Precalculated') {
+    size.factor <- data.obj$size.factor
+  }
+  if (norm == 'GMPR') {
+    if (norm.level %in% c('OTU', 'Species')) {
+      tab <- data.obj$otu.tab
+    } else {
+      tab <- data.obj$abund.list[[norm.level]]
+    }
+    size.factor <- GMPR(tab, intersect.no, ct.min)
+    
+    # Rev: 2018_01_30
+    ind <- !is.na(size.factor)
+    data.obj <- subset_data(data.obj, ind)
+    grp <- grp[ind]
+    df <- df[ind, ]
+    size.factor <- size.factor[ind]
+  }	
+  if (norm == 'TSS') {
+    size.factor <- colSums(data.obj$otu.tab)
+  }
+  
+  # Method-dependent processing
+  if (is.null(method)) {
+    if (nlevels(grp) == 2) {
+      method <- 'wilcox'
+    } else {
+      method <- 'kruskal'
+    }
+  }
+  if (method == 'wilcox.pair') {
+    if (nlevels(grp) != 2) stop("Wilcox test requires two groups!\n")
+    if (is.null(subject)) stop("Paired wilcox needs subject information!\n")
+    subject <- factor(df[, subject])
+    ind1 <- ind2 <- NULL
+    for(sub in levels(subject)) {
+      temp1 <- which(as.numeric(grp) == 1 & subject == sub)
+      temp2 <- which(as.numeric(grp) == 2 & subject == sub)
+      if (length(temp1) != 0 & length(temp2) != 0) {
+        ind1 <- c(ind1, temp1[1])
+        ind2 <- c(ind2, temp2[1])
+      }
+      
+    }
+  }
+  
+  if (method == 'perm.pair') {
+    if (is.null(subject)) stop("Paired permutation test needs subject information!\n")
+    subject <- factor(df[, subject])
+  }
+  
+  if (method == 'perm') {
+    if (!is.null(subject)) {
+      subject <- factor(df[, subject])
+    } 
+  }
+  
+  if (is.factor(grp)) {
+    
+    pv.list <- qv.list <-  fc.list <- pc.list <- m.list <- nzm.list  <- prv.list <- list()
+    res.final <- NULL
+    for (LOI in taxa.levels) {
+      cat(LOI, "\n")
+      ct <- data.obj$abund.list[[LOI]]
+      
+      # Filtering
+      prop0 <- t(t(ct) / colSums(ct))
+      if (!is.null(prev)) {
+        prop0 <- prop0[rowSums(prop0!=0) > prev * ncol(prop0), , drop=FALSE]	
+        ct <- ct[rownames(prop0), , drop=FALSE]
+      }
+      if (!is.null(minp)) {
+        prop0 <- prop0[rowMaxs(prop0) > minp, , drop=FALSE]	
+        ct <- ct[rownames(prop0), , drop=FALSE]
+      }
+      
+      if (!is.null(medianp)) {
+        nz.mean <- apply(prop0, 1, function(x) median(x[x!=0]))
+        prop0 <- prop0[nz.mean > medianp, , drop=FALSE]	
+        ct <- ct[rownames(prop0), , drop=FALSE]
+      }
+      
+      if (!is.null(cv)) {
+        prop0 <- prop0[rowSds(prop0) / rowMeans(prop0) > cv, , drop=FALSE]	
+        ct <- ct[rownames(prop0), , drop=FALSE]
+      }
+      
+      # Normalization
+      prop <- t(t(ct) / size.factor)
+      
+      # Transformation - Others are possible/may be explored in the future
+      if (transform == 'sqrt') {
+        prop <- sqrt(prop)
+      }
+      
+      if (method == 'perm') {
+        set.seed(seed)
+        pv.de2 <- permute_differential_analysis(df, prop, grp.name, adj.name, strata=subject, block.perm=block.perm, sqrt.trans=FALSE, perm.no=perm.no)$p.raw
+        names(pv.de2) <- rownames(prop)
+      }
+      
+      # For legacy use
+      if (method == 'perm.pair') {
+        set.seed(seed)
+        pv.de2 <- permute_differential_analysis(df, prop, grp.name, adj.name, strata=subject, block.perm=FALSE, sqrt.trans=FALSE, perm.no=perm.no)$p.raw
+        names(pv.de2) <- rownames(prop)
+      }
+      
+      pv.vec <- m.vec <- nzm.vec <- prv.vec <-  fc.vec <- pc.vec <-  NULL
+      
+      for (taxon in rownames(prop)) {
+        taxon.abund <- prop[taxon, ]
+        taxon.abund0 <- prop0[taxon, ]
+        
+        pv <- fc <- pc <- m <- nzm <- prv <- NULL
+        if (method == 'wilcox') {
+          if (nlevels(grp) != 2) stop("Wilcox test requires two groups!\n")
+          pv <- wilcox.test(taxon.abund ~ grp)$p.value
+          
+        }
+        if (method == 'wilcox.pair') {
+          pv <- wilcox.test(taxon.abund[ind1], taxon.abund[ind2], paired=T)$p.value
+        }
+        if (method == 'twopart') {
+          if (nlevels(grp) != 2) stop("Two part test requires two groups!\n")
+          grp1 <- taxon.abund[as.numeric(grp)==1]
+          grp2 <- taxon.abund[as.numeric(grp)==2]
+          pv <- twopart.test(grp1, grp2)$p.value
+        }	
+        if (method == 'kruskal') {
+          if (nlevels(grp) <= 2) warning("Kruskal-wallis test requires three or more groups!\n")
+          pv <- kruskal.test(taxon.abund ~ grp)$p.value
+        }
+        
+        if (method == 'perm') {
+          pv <- pv.de2[taxon]
+        }
+        
+        if (method == 'perm.pair') {
+          pv <- pv.de2[taxon]
+        }
+        m <- tapply(taxon.abund0, grp, function(x) mean(x))
+        nzm <- tapply(taxon.abund0, grp, function(x) mean(x[x != 0]))
+        prv <- tapply(taxon.abund0, grp, function(x) sum(x != 0))				
+        
+        # Rev: 2017_02_21 fc change baseline grp
+        if (nlevels(grp) == 2) {
+          grp.no <- table(grp)
+          fc <- log2(m[2] / m[1])
+          pc <- prv[2] / grp.no[2] / prv[1] * grp.no[1]
+        } else {
+          pc <- fc <- NA
+        }
+        
+        pv.vec <- rbind(pv.vec, pv)
+        fc.vec <- rbind(fc.vec, fc)
+        m.vec <- rbind(m.vec, m)
+        nzm.vec <- rbind(nzm.vec, nzm)
+        pc.vec <- rbind(pc.vec, pc)
+        prv.vec <- rbind(prv.vec, prv / table(grp))	
+      }
+      
+      
+      temp <- p.adjust(pv.vec[, 1], 'fdr')
+      
+      qv.vec <- matrix(temp, ncol=1)
+      
+      rownames(pv.vec) <- rownames(qv.vec) <- rownames(fc.vec) <- rownames(pc.vec) <- rownames(m.vec) <- rownames(nzm.vec) <- rownames(prv.vec) <- rownames(prop)
+      colnames(pv.vec) <- 'Pvalue'
+      colnames(qv.vec) <- 'Qvalue'
+      colnames(fc.vec) <- 'logFoldChange'
+      colnames(pc.vec) <- 'PrevalChange'
+      colnames(m.vec) <- paste(levels(grp), 'Mean')
+      colnames(nzm.vec) <- paste(levels(grp), 'nzMean')
+      colnames(prv.vec) <- paste(levels(grp), 'preval')
+      
+      pv.list[[LOI]] <- pv.vec
+      qv.list[[LOI]] <- qv.vec
+      fc.list[[LOI]] <- fc.vec
+      pc.list[[LOI]] <- pc.vec
+      m.list[[LOI]] <- m.vec
+      nzm.list[[LOI]] <- nzm.vec
+      prv.list[[LOI]] <- prv.vec
+      
+      res <- cbind(pv.vec, qv.vec, m.vec, nzm.vec, fc.vec, prv.vec, pc.vec)
+      rownames(res) <- rownames(prop)
+      #write.csv(res, paste0("Taxa_DifferentialAbundanceAnalysis_", LOI, "_", ann, ".csv"))
+      
+      if (mt.method == 'fdr') {
+        res.final <- rbind(res.final, res[res[, 'Qvalue'] <= cutoff, , drop=F])
+      }
+      if (mt.method == 'raw') {
+        res.final <- rbind(res.final, res[res[, 'Pvalue'] <= cutoff, , drop=F])
+      }
+      
+    }
+    
+    if (!is.null(res.final)) {
+      colnames(res.final) <- colnames(res)
+      #write.csv(res.final, paste0("Taxa_DifferentialAbundanceAnalysis_AllLevels_", mt.method, '_', cutoff, "_", ann, ".csv"))
+    }
+    return(list(pv.list=pv.list, fc.list=fc.list, pc.list=pc.list, qv.list=qv.list, m.list=m.list))
+  } else {
+    if (is.null(method)) {
+      method <- 'Spearman'
+    }
+    # Continuous case - currently only has DESeq2 
+    pv.list <- qv.list <-  fc.list <-  m.list <- list()
+    res.final <- NULL
+    for (LOI in taxa.levels) {
+      cat(LOI, "\n")
+      ct <- data.obj$abund.list[[LOI]]
+      
+      # Filtering
+      prop0 <- t(t(ct) / colSums(ct))
+      if (!is.null(prev)) {
+        prop0 <- prop0[rowSums(prop0!=0) > prev * ncol(prop0), , drop=FALSE]	
+        ct <- ct[rownames(prop0), , drop=FALSE]
+      }
+      if (!is.null(minp)) {
+        prop0 <- prop0[rowMaxs(prop0) > minp, , drop=FALSE]	
+        ct <- ct[rownames(prop0), , drop=FALSE]
+      }
+      
+      if (!is.null(medianp)) {
+        nz.mean <- apply(prop0, 1, function(x) median(x[x!=0]))
+        prop0 <- prop0[nz.mean > medianp, , drop=FALSE]	
+        ct <- ct[rownames(prop0), , drop=FALSE]
+      }
+      
+      if (!is.null(cv)) {
+        prop0 <- prop0[rowSds(prop0) / rowMeans(prop0) > cv, , drop=FALSE]	
+        ct <- ct[rownames(prop0), , drop=FALSE]
+      }
+      
+      # Normalization
+      prop <- t(t(ct) / size.factor)
+      
+      # Transformation - Others are possible/may be explored in the future
+      if (transform == 'sqrt') {
+        prop <- sqrt(prop)
+      }
+      
+      if (method == 'perm') {
+        set.seed(seed)
+        pv.de2 <- permute_differential_analysis(df, prop, grp.name, adj.name, strata=subject, block.perm=block.perm, sqrt.trans=FALSE, perm.no=perm.no)$p.raw
+        names(pv.de2) <- rownames(prop)
+        # Place holder
+        fc.de2 <- sapply(1:nrow(prop), function(i) cor(prop[i, ], df[, grp.name], method='spearman'))
+      }
+      
+      if (method == 'Spearman') {
+        if (!is.null(adj.name)) {
+          stop("Spearman test can't adjust covariates!")
+        }
+        pv.de2 <- apply(prop, 1, function(x) {
+          cor.test(x, grp, method='spearman')$p.value
+        })
+        names(pv.de2) <- rownames(prop)
+        # Place holder
+        fc.de2 <- sapply(1:nrow(prop), function(i) cor(prop[i, ], df[, grp.name], method='spearman'))
+      }
+      pv.vec <- matrix(pv.de2, ncol=1)	
+      qv.vec <- matrix(p.adjust(pv.vec[, 1], 'fdr'), ncol=1)
+      fc.vec <- matrix(fc.de2, ncol=1)
+      m.vec <- matrix(rowMeans(prop0), ncol=1)
+      
+      rownames(pv.vec) <- rownames(qv.vec) <- rownames(fc.vec) <- rownames(m.vec)  <- rownames(prop)
+      colnames(pv.vec) <- 'Pvalue'
+      colnames(qv.vec) <- 'Qvalue'
+      colnames(fc.vec) <- 'SpearmanCorr'
+      colnames(m.vec) <- 'Mean'
+      
+      
+      pv.list[[LOI]] <- pv.vec
+      qv.list[[LOI]] <- qv.vec
+      fc.list[[LOI]] <- fc.vec
+      m.list[[LOI]] <- m.vec
+      
+      
+      res <- cbind(m.vec, fc.vec, pv.vec, qv.vec)
+      rownames(res) <- rownames(prop)
+      #write.csv(res, paste0("Taxa_DifferentialAbundanceAnalysis_", LOI, "_", ann, ".csv"))
+      
+      if (mt.method == 'fdr') {
+        res.final <- rbind(res.final, res[res[, 'Qvalue'] <= cutoff, , drop=F])
+      }
+      if (mt.method == 'raw') {
+        res.final <- rbind(res.final, res[res[, 'Pvalue'] <= cutoff, , drop=F])
+      }
+    }
+    
+    if (!is.null(res.final)) {
+      colnames(res.final) <- colnames(res)
+      #write.csv(res.final, paste0("Taxa_DifferentialAbundanceAnalysis_AllLevels_", mt.method, '_', cutoff, "_", ann, ".csv"))
+    }
+    return(list(pv.list=pv.list, fc.list=fc.list, qv.list=qv.list, m.list=m.list, res.final=res.final))
+  }
+  
+}
+
+visualize_differential_analysis <- function (data.obj, diff.obj,  grp.name=NULL, strata=NULL, test='Nonpara', mt.method='fdr', scale='sqrt', cutoff=0.15,
+                                             taxa.levels=c('Phylum', 'Family', 'Genus'), ord=TRUE, eff.type='logP', indivplot=TRUE, colFnsC=NULL, colFnsF=NULL, subject=NULL,
+                                             xsize=10, ann='', hei1=NULL, wid1=NULL, hei2=NULL, wid2=NULL) {
+  
+  # uniquefy names
+  # For backward compatibility. Newer version will not need this and below. The old version has 'unclassified' which leads to duplicate names.
+  # Newer version has 'Unclassified'. Case difference.
+  
+  # Check whether there is name duplication
+  check.names <- NULL
+  results <- list()
+  obj0 <- diff.obj[[1]]
+  for (level in names(obj0)) {
+    obj <- obj0[[level]]
+    # rownames(obj) <- gsub('unclassified', paste0('Unclassified',substr(level, 1, 1)), rownames(obj))
+    check.names <- c(check.names, rownames(obj))
+  }
+  
+  if (sum(table(check.names) >= 2)) {
+    data.obj <- uniquefy_taxa_names(data.obj)
+    
+    for (name1 in names(diff.obj)) {
+      obj0 <- diff.obj[[name1]]
+      for (level in names(obj0)) {
+        obj <- obj0[[level]]
+        # rownames(obj) <- gsub('unclassified', paste0('Unclassified',substr(level, 1, 1)), rownames(obj))
+        rownames(obj) <- paste0(rownames(obj), substr(level, 1, 1))
+        obj0[[level]] <- obj
+      }
+      diff.obj[[name1]] <- obj0
+    }
+    
+  }
+  
+  fc.list <- diff.obj$fc.list
+  qv.list <- diff.obj$qv.list
+  pv.list <- diff.obj$pv.list
+  if (test == 'Para') {
+    fc.lc.list <- diff.obj$fc.lc.list
+    fc.uc.list <- diff.obj$fc.uc.list
+  }
+  df <- data.obj$meta.dat
+  grp <- df[, grp.name]
+  
+  ind <- !is.na(grp)
+  data.obj <- subset_data(data.obj, ind)
+  grp <- grp[ind]
+  df <- df[ind, ]
+  
+  prop <- NULL
+  eff <- eff.lc <- eff.uc <- NULL
+  taxa.names <- NULL
+  if (is.null(taxa.levels)) {
+    LOIs <- names(qv.list)
+  } else {
+    LOIs <- taxa.levels
+    if (sum(!(taxa.levels %in% names(qv.list)))) {
+      stop('Taxa levels are not contained in differential abundance analysis results!\n')
+    }
+  }
+  for (LOI in LOIs) {
+    pv.vec <- pv.list[[LOI]]
+    fc.vec <- fc.list[[LOI]]
+    #qv.vec <- qvalue(pv.vec[, 1])$qvalues
+    qv.vec <- qv.list[[LOI]]
+    
+    if (test == 'Para') {
+      fc.lc.vec <- fc.lc.list[[LOI]]
+      fc.uc.vec <- fc.uc.list[[LOI]]
+    }
+    
+    if (mt.method == 'fdr') {
+      taxa.name <- rownames(qv.vec)[qv.vec <= cutoff]
+      taxa.name <- taxa.name[!is.na(taxa.name)]
+    }
+    
+    if (mt.method == 'raw') {
+      taxa.name <- rownames(pv.vec)[pv.vec <= cutoff]
+      taxa.name <- taxa.name[!is.na(taxa.name)]
+    }
+    
+    if (length(taxa.name) != 0) {
+      prop0 <- data.obj$abund.list[[LOI]]
+      prop0 <- t(t(prop0) / colSums(prop0))
+      prop0 <-  prop0[taxa.name, , drop=F]
+      if (ord == TRUE) {
+        prop0 <- prop0[rev(order(rowMeans(prop0))), , drop=F]
+      }
+      prop <- rbind(prop, prop0)
+      # currently using fold change
+      if (test == 'Para') {
+        eff <- rbind(eff, fc.vec[taxa.name, , drop=F])
+        eff.lc <- rbind(eff.lc, fc.lc.vec[taxa.name, , drop=F])
+        eff.uc <- rbind(eff.uc, fc.uc.vec[taxa.name, , drop=F])
+      } else {
+        if (eff.type == 'LFC') {
+          eff <- c(eff, fc.vec[taxa.name, ])
+        }
+        if (eff.type == 'logP') {
+          eff <- c(eff, sign(fc.vec[taxa.name, ]) * (-log10(pv.vec[taxa.name, ])))
+        }
+      }
+      taxa.names <- c(taxa.names, taxa.name)
+    }
+  }
+  results$taxa.names <- taxa.names
+  if (length(taxa.names) == 0) {
+    cat('No differential taxa! \n')
+  } else {
+    if (length(taxa.names) >= 2) {
+      if (is.null(wid1) | is.null(hei1)) {
+        wid1 <- 7 * ifelse(nrow(prop) / 30 < 1, 1, nrow(prop) / 30)
+        hei1 <- 7
+      }
+      
+      if (!is.null(grp.name)) {
+        results$barplot_aggregate <- taxa_barplot_aggregate(prop, df, grp.name, strata, scale, xsize)
+        results$boxplot_aggregate <- taxa_boxplot_aggregate(prop, df, grp.name, strata, scale, xsize) 
+      }
+      
+      # currently fold change
+      if (test == 'Para') {
+        rownames(eff) <- rownames(eff.lc) <- rownames(eff.uc) <- taxa.names
+        for (k in 1:ncol(eff)) {
+          fold.dat.plot1 <- data.frame(Estimate=eff[, k], LCI=eff.lc[, k], UCI=eff.uc[, k], IV=taxa.names)
+          results$effect_size <- plot_effect_size2(fold.dat.plot1)
+        }
+      } else {
+        if (!is.na(eff[1])) {
+          names(eff) <- taxa.names
+          eff <- eff[!is.na(eff) & is.finite(eff)]
+          eff <- sort(eff)
+          taxa.names2 <- names(eff)
+          if (is.null(wid2) | is.null(hei2)) {
+            hei2 <- 4 + length(taxa.names2) / 20 * 3 
+            wid2 <- 6
+          }
+          if (eff.type == 'LFC') {
+            results$effect_size <- plot_effect_size(taxa.names2, eff, levels(grp)[1], levels(grp)[2], ylab='Log2 fold change')
+          }
+          if (eff.type == 'Spearman') {
+            results$effect_size <- plot_effect_size(taxa.names2, eff, levels(grp)[1], levels(grp)[2], ylab='Spearman correlation')
+          }
+          if (eff.type == 'logP') {
+            results$effect_size <- plot_effect_size(taxa.names2, eff, levels(grp)[1], levels(grp)[2], ylab='-log10(P)')
+          }					
+        }
+      }
+      
+      # create heatmp
+      #			taxa.names2 <- taxa.names[!grepl('unclassified', taxa.names, ignore.case=T)]
+      if (!is.null(grp.name)) {
+        
+         results$prop_heatmap <- generate_taxa_heatmap(data.obj, taxa.levels='All', taxa=taxa.names, meta.info=c(grp.name, strata),  ann=paste0(mt.method, '_', cutoff, '_', ann), colFnsC=colFnsC, colFnsF=colFnsF)
+         results$rank_heatmap <-generate_taxa_heatmap(data.obj, taxa.levels='All', taxa=taxa.names, meta.info=c(grp.name, strata), data.type='R', ann=paste0(mt.method, '_', cutoff, '_Rank_', ann), colFnsC=colFnsC, colFnsF=colFnsF)
+        try(
+          results$biplot <- generate_taxa_biplot(data.obj, taxa=taxa.names, trans='sqrt', grp.name, ann=paste0(mt.method, '_', cutoff, '_', ann), varname.size = 1.5)	
+        )	
+      }
+    }
+    if (!is.null(grp.name)) {
+      # Individual plots
+      if (indivplot == TRUE) {
+        results$taxa_boxplot <- generate_taxa_boxplot(data.obj, grp.name=grp.name, taxa.levels='All', strata = strata, taxa.name=taxa.names, ann=paste0(mt.method, '_', cutoff, '_', ann))
+        if (!is.null(subject)) {
+          generate_taxa_boxplot(data.obj, grp.name=grp.name, taxa.levels='All', strata = strata, taxa.name=taxa.names, subject=subject, ann=paste0(mt.method, '_', cutoff, '_', ann, '_Paired'))
+        }
+        results$taxa_boxplot_binary <- generate_taxa_boxplot(data.obj, grp.name=grp.name, taxa.levels='All', strata = strata, taxa.name=taxa.names, scale='binary', ann=paste0(mt.method, '_', cutoff, '_', ann))
+        results$taxa_barplot <- generate_taxa_barplot(data.obj, grp.name=grp.name, taxa.levels='All', strata = strata, taxa.name=taxa.names, ann=paste0(mt.method, '_', cutoff, '_', ann))
+      }
+      
+    }
+  }
+  return(results)
+}
+
+# Rev: 2018_03_08 add bootstrap standard error (normal approximation)
+taxa_barplot_aggregate <- function (prop, df, grp.name, strata=NULL, scale='sqrt',  xsize=10, ylab='Proportion', error='ci', cutoff=0.00001) {
+  
+  if (scale == 'log') {
+    prop[prop <= cutoff] <- cutoff
+  }
+  
+  grp <- factor(df[, grp.name])
+  
+  if (is.null(strata)) {
+    df2 <- data.frame(Group=grp, t(prop))
+    df2 <- melt(df2)
+    colnames(df2) <- c('Group', 'Taxa', 'Value')
+    
+    # Could be revised
+    temp1 <- aggregate(Value ~ Group + Taxa, df2, mean)
+    
+    if (error == 'se') {
+      temp2 <- aggregate(Value ~ Group + Taxa, df2, function(x) {
+        sd(sapply(1:50, function(i) mean(sample(x, repl=TRUE))))
+      })
+    }
+    if (error == 'ci') {
+      temp2 <- aggregate(Value ~ Group + Taxa, df2, function(x) {
+        2 * sd(sapply(1:50, function (i) mean(sample(x, repl=TRUE))))
+      })
+    }
+    
+    df2 <- cbind(temp1, temp2[, 3])
+    colnames(df2) <- c('Group', 'Taxa', 'Mean', 'SE')
+    
+    limits <- aes(ymax = Mean + SE, ymin = ifelse(Mean - SE > 0, Mean - SE, 0))
+    dodge <- position_dodge(width=0.90)
+    
+    obj1 <- ggplot(df2, aes(x=Taxa, y=Mean, fill=Group)) + 
+      geom_bar(position=dodge, stat="identity", alpha=0.75) + 
+      geom_bar(position=dodge, stat="identity", alpha=0.75, colour="black", show.legend=FALSE, size=0.25) +
+      geom_errorbar(limits, position=dodge, size=0.25, width=0.25) +
+      labs(y=paste(ylab), x='') +
+      theme(axis.text.x = element_text(angle = 90, hjust = 1, size=xsize)) +
+      theme(legend.position="top", legend.title=element_blank())
+    
+    if (scale == 'sqrt') {
+      obj1 <- obj1 + scale_y_sqrt(
+        breaks = trans_breaks("sqrt", function(x) x^2),
+        labels = trans_format("sqrt", math_format(.x^2)))
+    }
+    
+    # To be revised
+    if (scale == 'log') {
+      obj1 <- obj1 + scale_y_log10(
+        breaks = trans_breaks("log10", function(x) 10^x),
+        labels = trans_format("log10", math_format(10^.x)))
+    }
+    if (scale == 'boxcox') {
+      obj1 <- obj1 + scale_y_continuous(breaks=c(0, 0.0001, 0.001, 0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 1.0), trans=boxcox_trans(1/3))
+    }
+    
+  } else {
+    grp2 <- factor(paste(strata, df[, strata]), levels=paste(strata, levels(df[, strata])))
+    df2 <- data.frame(Group=grp, Strata=grp2, t(prop))
+    df2 <- melt(df2)
+    colnames(df2) <- c('Group', 'Strata', 'Taxa', 'Value')
+    
+    # Could be revised
+    temp1 <- aggregate(Value ~ Group + Strata + Taxa, df2, mean)
+    
+    if (error == 'se') {
+      temp2 <- aggregate(Value ~ Group + Strata +Taxa, df2, function(x) {
+        #sd(x) / sqrt(length(x))
+        sd(sapply(1:50, function(i) mean(sample(x, repl=TRUE))))
+      })
+    }
+    if (error == 'ci') {
+      temp2 <- aggregate(Value ~ Group + Strata + Taxa, df2, function(x) {
+        #sd(x) / sqrt(length(x))
+        2 * sd(sapply(1:50, function (i) mean(sample(x, repl=TRUE))))
+      })
+    }
+    
+    df2 <- cbind(temp1, temp2[, 4])
+    colnames(df2) <- c('Group', 'Strata', 'Taxa', 'Mean', 'SE')
+    
+    limits <- aes(ymax = Mean + SE, ymin = ifelse(Mean - SE > 0, Mean - SE, 0))
+    dodge <- position_dodge(width=0.90)
+    
+    obj1 <- ggplot(df2, aes(x=Taxa, y=Mean, fill=Group)) + 
+      geom_bar(position=dodge, stat="identity", alpha=0.75) + 
+      geom_bar(position=dodge, stat="identity", alpha=0.75, colour="black", show.legend=FALSE, size=0.25) +
+      geom_errorbar(limits, position=dodge, size=0.25, width=0.25) +
+      facet_wrap(~Strata, ncol=1) +
+      labs(y=paste(ylab), x='') +
+      theme(axis.text.x = element_text(angle = 90, hjust = 1, size=xsize)) +
+      theme(legend.position="top", legend.title=element_blank())
+    if (scale == 'sqrt') {
+      obj1 <- obj1 + scale_y_sqrt(
+        breaks = trans_breaks("sqrt", function(x) x^2),
+        labels = trans_format("sqrt", math_format(.x^2)))
+    }
+    if (scale == 'log') {
+      obj1 <- obj1 + scale_y_log10(
+        breaks = trans_breaks("log10", function(x) 10^x),
+        labels = trans_format("log10", math_format(10^.x)))
+    }
+    if (scale == 'boxcox') {
+      obj1 <- obj1 + scale_y_continuous(breaks=c(0, 0.0001, 0.001, 0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 1.0), trans=boxcox_trans(1/3))
+    }
+  }
+  return(obj1)
+}
+
+# Rev: 2018_03_08 Add geom_point and jsize
+taxa_boxplot_aggregate <- function (prop, df, grp.name, strata=NULL, scale='none', xsize=10, jsize=NULL, ylab='Proportion', cutoff=0.00001) {
+  grp <- factor(df[, grp.name])
+  if (scale == 'log') {
+    prop[prop <= cutoff] <- cutoff
+  }
+  if (is.null(jsize)) {
+    nT <- nrow(prop) 
+    jsize <- 2 / (nT %/% 20 + 1)
+  }
+  
+  if (is.null(strata)) {
+    df2 <- data.frame(Group=grp, t(prop))
+    df2 <- melt(df2)
+    colnames(df2) <- c('Group', 'Taxa', 'Value')
+    
+    dodge <- position_dodge(width=0.88)
+    
+    obj1 <- ggplot(df2, aes(x=Taxa, y=Value, fill=Group)) + 
+      geom_boxplot(position=dodge, alpha = ifelse(jsize == 0, 0.75, 0.75), outlier.alpha=ifelse(jsize == 0, 0.5, 0),  lwd=0.25, fatten=1)
+    if (jsize != 0) {
+      obj1 <- obj1 + geom_point(position=position_jitterdodge(dodge.width=0.88), size=jsize, alpha=0.3)
+    }
+    obj1 <- obj1 +
+      labs(y=paste(ylab), x='') +
+      theme(axis.text.x = element_text(angle = 90, hjust = 1, size=xsize)) +
+      theme(legend.position="top", legend.title=element_blank())
+    if (scale == 'sqrt') {
+      obj1 <- obj1 + scale_y_sqrt(
+        breaks = trans_breaks("sqrt", function(x) x^2),
+        labels = trans_format("sqrt", math_format(.x^2)))
+    }
+    if (scale == 'log') {
+      obj1 <- obj1 + scale_y_log10(
+        breaks = trans_breaks("log10", function(x) 10^x),
+        labels = trans_format("log10", math_format(10^.x)))
+    }
+    if (scale == 'boxcox') {
+      obj1 <- obj1 + scale_y_continuous(breaks=c(0, 0.0001, 0.001, 0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 1.0), trans=boxcox_trans(1/3))
+    }
+    
+  } else {
+    grp2 <- factor(paste(strata, df[, strata]), levels=paste(strata, levels(df[, strata])))
+    df2 <- data.frame(Group=grp, Strata=grp2, t(prop))
+    df2 <- melt(df2)
+    colnames(df2) <- c('Group', 'Strata', 'Taxa', 'Value')
+    
+    dodge <- position_dodge(width=0.88)
+    
+    obj1 <- ggplot(df2, aes(x=Taxa, y=Value, fill=Group)) + 
+      geom_boxplot(position=dodge, alpha = ifelse(jsize == 0, 0.75, 0.75),  outlier.alpha=ifelse(jsize == 0, 0.5, 0),  lwd=0.25, fatten=1) 
+    if (jsize != 0) {
+      obj1 <- obj1 + geom_point(position=position_jitterdodge(dodge.width=0.88), size=jsize, alpha=0.2)
+    }
+    obj1 <- obj1 +
+      facet_wrap(~Strata, ncol=1) +
+      labs(y=paste(ylab), x='') +
+      theme(axis.text.x = element_text(angle = 90, hjust = 1, size=xsize)) +
+      theme(legend.position="top", legend.title=element_blank())
+    if (scale == 'sqrt') {
+      obj1 <- obj1 + scale_y_sqrt(
+        breaks = trans_breaks("sqrt", function(x) x^2),
+        labels = trans_format("sqrt", math_format(.x^2)))
+    }
+    # To be revised
+    if (scale == 'log') {
+      obj1 <- obj1 + scale_y_log10(
+        breaks = trans_breaks("log10", function(x) 10^x),
+        labels = trans_format("log10", math_format(10^.x)))
+    }
+    if (scale == 'boxcox') {
+      obj1 <- obj1 + scale_y_continuous(breaks=c(0, 0.0001, 0.001, 0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 1.0), trans=boxcox_trans(1/3))
+    }
+    
+  }
+  return(obj1)
+  
+}
+
+plot_effect_size <- function (month,  value, pos.lab, neg.lab, ylab, hjust1=1.3, hjust2=-0.3, lab.size=3, xsize=10) {
+  month <- factor(month, levels=month)
+  dtm <- data.frame(month=month, value=value)
+  dtm$colour <- factor(ifelse(dtm$value < 0, neg.lab, pos.lab), levels=c(pos.lab, neg.lab))
+  dtm$hjust <- ifelse(dtm$value > 0, hjust1, hjust2)
+  obj <- ggplot(dtm, aes(month, value, label = month, hjust = hjust)) + 
+    geom_text(aes(y = 0, colour = colour), size=lab.size) + 
+    geom_bar(stat = "identity", aes(fill = colour)) +
+    theme(axis.text.x = element_text(size=xsize)) +
+    ylim(c(-max(abs(value))*1.1, max(abs(value))*1.1)) +
+    coord_flip() + 
+    scale_x_discrete(breaks = NULL) +
+    labs(x = "", y = ylab) +
+    theme(legend.position="top", legend.title=element_blank())
+  return(obj)
+}
+
+
+plot_effect_size2 <- function (fold.dat.plot1, ylabel='log(Fold change)', is.ln=TRUE, ord=TRUE) {
+  
+  if (is.ln) {
+    fold.dat.plot1[, c('Estimate', 'LCI', 'UCI')] <- fold.dat.plot1[, c('Estimate', 'LCI', 'UCI')] * log2(exp(1))
+  }
+  Alphas <- seq(1, 99, 2) / 100
+
+  Multiplier <- seq(1, 0.01, len=50)
+  zzTransparency <<- 1/(length(Multiplier)/4)
+  
+  fold.dat.plot1 <- data.frame(cbind(fold.dat.plot1, Scalar=rep(Multiplier, each = nrow(fold.dat.plot1))))
+  fold.dat.plot1$Emphasis <- by(1 - seq(0, 1, length = length(Multiplier) + 1)[-(length(Multiplier) + 1)],
+                                as.character(round(Multiplier, 5)), mean)[as.character(round(fold.dat.plot1$Scalar, 5))]
+  
+  fold.dat.plot1$IV <- factor(fold.dat.plot1$IV, unique(fold.dat.plot1$IV))
+  
+  if (ord) {
+    fold.dat.plot1 <- fold.dat.plot1[order(as.character(fold.dat.plot1$IV)), ]
+  }
+  
+  OutputPlot <- ggplot2::qplot(data = fold.dat.plot1, x = IV, y = Estimate,
+                               ymin = Estimate - (Estimate -LCI)*Scalar, ymax = Estimate + (UCI - Estimate)*Scalar,
+                               ylab = NULL, xlab = NULL, alpha = I(zzTransparency), colour = I(gray(0)), geom = "blank")
+  
+  OutputPlot <- OutputPlot + geom_hline(yintercept = 0, lwd = I(7/12), colour = I(hsv(0/12, 7/12, 7/12)), alpha = I(5/12))
+  OutputPlot <- OutputPlot + geom_linerange(data = fold.dat.plot1, aes(size = 1/Emphasis), alpha = I(zzTransparency), colour = I(gray(0)))
+  OutputPlot <- OutputPlot + scale_size_continuous() + guides(size=FALSE)
+  OutputPlot <- OutputPlot + coord_flip() + geom_point(aes(x = IV, y = Estimate), colour = I(gray(0))) + theme_bw() + ylab(ylabel)
+  return(OutputPlot)
+}
+
+# Rev: 2017_02_19 Add hei and wid
+# Rev: 2018_01_15 Add qt.outlier=0.097
+# Rev: 2018_03_06 position_jitter(h = 0), coord_cartesian
+generate_taxa_boxplot <- function (data.obj,  grp.name, strata=NULL, scale='P',  taxa.levels=c('Phylum', 'Class', 'Order', 'Family', 'Genus'), 
+                                   taxa.name='All', pseudo.ct=0.5, rm.outlier=T, qt.outlier=0.97, prev=0.1, minp=0.002, ann='All', subject=NULL, l.size=0.5, p.size=2.5, hei0=NULL, wid0=NULL) {
+  # To be completed
+  df <- data.obj$meta.dat
+  grp <- df[, grp.name]
+  if (!is.null(subject)) {
+    ID <- df[, subject]
+  }
+  obj <- NULL
+  for (LOI in taxa.levels) {
+    if (LOI == 'All') {
+      if (taxa.name == 'All') stop('Taxa names are not required to be all when taxa level is also all!\n')
+      headnames <- NULL
+      prop <- NULL
+      for (LOI2 in names(data.obj$abund.list)) {
+        prop2 <- data.obj$abund.list[[LOI2]]
+        taxa.name2 <- taxa.name[taxa.name %in% rownames(prop2)]
+        if (length(taxa.name2) != 0) {
+          if (scale == 'logP') {
+            prop2 <- prop2 + pseudo.ct
+          } 
+          prop2 <- t(t(prop2) / colSums(prop2))			
+          headnames2 <- sapply(strsplit(rownames(prop2), ";"), paste, collapse="\n")
+          names(headnames2) <- rownames(prop2)
+          prop <- rbind(prop, prop2[taxa.name2, , drop=FALSE])
+          headnames <- c(headnames, headnames2)
+        }
+      }
+      
+    } else {
+      cat(LOI, "\n")
+      prop <- data.obj$abund.list[[LOI]]
+      if (scale == 'logP') {
+        prop <- prop + pseudo.ct
+      } 
+      prop <- t(t(prop) / colSums(prop))
+      
+      headnames <- sapply(strsplit(rownames(prop), ";"), paste, collapse="\n")
+      names(headnames) <- rownames(prop)
+      
+      if (taxa.name == 'All') {
+        prop <- prop[rowMaxs(prop) > minp & rowSums(prop!=0) > prev*ncol(prop), , drop=FALSE]
+      } else {
+        prop <- prop[taxa.name, , drop=FALSE]
+      }
+      
+    }
+    
+    if (scale == 'logP') {
+      prop <- log10(prop)
+    }
+    
+    if (scale == 'sqrtP') {
+      prop <- sqrt(prop)
+    }
+    
+    if (scale == 'binary') {
+      temp <- prop != 0
+      prop[temp] <- 'Presence'
+      prop[!temp] <- 'Absence'
+    }
+    if (is.null(hei0)) {
+      hei <- 5
+    } else {
+      hei <- hei0
+    }
+    
+    if (is.null(strata)) {
+      if (is.null(wid0)) {
+        wid <- 5
+      } else {
+        wid <- wid0
+      }
+      
+    } else {
+      if (is.null(wid0)) {
+        wid <- 5.5
+      } else {
+        wid <- wid0
+      }
+    }
+    
+    if (scale == 'P') {
+      ylab <- 'Proportion'
+    } 
+    if (scale == 'logP') {
+      ylab <- 'log10(Proportion)'
+    }
+    if (scale == 'sqrtP') {
+      ylab <- 'sqrt(Proportion)'
+    }
+    if (scale == 'binary') {
+      ylab <- 'Count'
+    } 
+    
+    if (is.null(strata)) {
+      for (taxon in rownames(prop)) {
+        taxon.abund <- prop[taxon, ]
+        if (scale != 'binary') {
+          if (scale == 'P') {
+            if (rm.outlier == T) {
+              ylims <- c(min(taxon.abund), quantile(taxon.abund, qt.outlier) * 1.25)
+            } else {
+              ylims <- range(taxon.abund)
+            }
+            
+          } else {
+            ylims <- range(taxon.abund)
+          }
+          
+          if (is.null(subject)) {
+            df2 <- data.frame(Value=taxon.abund, Group=grp)	
+            dodge <- position_dodge(width=0.9)
+            obj <- ggplot(df2, aes(x=Group, y=Value, col=Group)) +
+              geom_boxplot(position=dodge, outlier.colour = NA, alpha=0.75) + 
+              geom_jitter(alpha=0.6, size=3.0,  position = position_jitter(w = 0.1, h = 0)) +
+              labs(y=ylab, title=headnames[taxon]) 
+            if (rm.outlier) {
+              obj <- obj + coord_cartesian(ylim = ylims)
+            }
+            #		ylim(ylims[1], ylims[2]) +
+            obj <- obj + theme(legend.position="none")
+          } else {						
+            df2 <- data.frame(Value=taxon.abund, Group=grp, subject=ID)	
+            dodge <- position_dodge(width=0.9)
+            obj <- ggplot(df2, aes(x=Group, y=Value, shape=Group, group=subject)) +
+              geom_point(size=p.size) +
+              geom_line(size=l.size) +
+              labs(y=ylab, title=headnames[taxon]) +
+              #	ylim(ylims) +
+              theme(legend.position="none")
+          }
+          
+        } else {
+          df2 <- data.frame(Value=taxon.abund, Group=grp)	
+          obj <- ggplot(df2, aes(x=Group, fill=Value)) +
+            geom_bar(width=.5) +
+            labs(y=ylab, title=headnames[taxon]) +
+            theme(legend.title=element_blank())
+        }
+      }	
+    } else {
+      for (taxon in rownames(prop)) {
+        taxon.abund <- prop[taxon, ]
+        if (scale != 'binary') {
+          if (scale == 'P') {
+            if (rm.outlier == T) {
+              ylims <- c(min(taxon.abund), quantile(taxon.abund, qt.outlier) * 1.25)
+            } else {
+              ylims <- range(taxon.abund)
+            }
+            
+          } else {
+            ylims <- range(taxon.abund)
+          }
+          grp2 <- df[, strata]
+          df2 <- data.frame(Value=taxon.abund, Group=grp, Strata=grp2)
+          dodge <- position_dodge(width=0.9)
+          obj <- ggplot(df2, aes(x=Strata, y=Value, col=Group, fill=Group)) +
+            geom_boxplot(fill='white', alpha=0.6, position=dodge, outlier.colour = NA, alpha=0.75) + 
+            geom_point(position=position_jitterdodge(dodge.width=0.9), size=3.0, alpha=0.6) +
+            labs(y=ylab, x=strata, title=headnames[taxon])
+          if (rm.outlier) {
+            obj <- obj + coord_cartesian(ylim = ylims)
+          }
+          obj <- obj + theme(legend.position="none")
+        } else {
+          grp2 <- df[, strata]
+          df2 <- data.frame(Value=taxon.abund, Group=grp, Strata=grp2)
+          obj <- ggplot(df2, aes(x=Group, fill=Value)) +
+            geom_bar(width=.5) +
+            labs(y=ylab, title=headnames[taxon]) +
+            facet_wrap(~ Strata) + 
+            theme(legend.title=element_blank())
+        }
+      }
+      
+    }
+    return(obj)
+  }
+  
+}
+
+# Add combined barplot with error bar and presence/absence bar (currently presence/absence bar is in generate_taxa_boxplot
+# Rev: 2018_01_15 Add qt.outlier=0.97
+# Rev: 2018_03_06 coord_cartesian
+generate_taxa_barplot <- function (data.obj,  grp.name, strata=NULL, scale='P', taxa.levels=c('Phylum', 'Class', 'Order', 'Family', 'Genus'),
+                                   taxa.name='All', rm.outlier=T, qt.outlier=0.97, prev=0.1, minp=0.002, ann='All') {
+  # To be completed
+  df <- data.obj$meta.dat
+  grp <- factor(df[, grp.name])
+  obj <- NULL
+  for (LOI in taxa.levels) {
+    if (LOI == 'All') {
+      if (taxa.name == 'All') stop('Taxa names are not required to be all when taxa level is also all!\n')
+      headnames <- NULL
+      prop <- NULL
+      for (LOI2 in names(data.obj$abund.list)) {
+        prop2 <- data.obj$abund.list[[LOI2]]
+        taxa.name2 <- taxa.name[taxa.name %in% rownames(prop2)]
+        if (length(taxa.name2) != 0) {
+          if (scale == 'logP') {
+            prop2 <- prop2 + 0.5
+          } 
+          prop2 <- t(t(prop2) / colSums(prop2))			
+          headnames2 <- sapply(strsplit(rownames(prop2), ";"), paste, collapse="\n")
+          names(headnames2) <- rownames(prop2)
+          prop <- rbind(prop, prop2[taxa.name2, , drop=FALSE])
+          headnames <- c(headnames, headnames2)
+        }
+      }
+      
+    } else {
+      cat(LOI, "\n")
+      prop <- data.obj$abund.list[[LOI]]
+      if (scale == 'logP') {
+        prop <- prop + 0.5
+      } 
+      prop <- t(t(prop) / colSums(prop))
+      
+      headnames <- sapply(strsplit(rownames(prop), ";"), paste, collapse="\n")
+      names(headnames) <- rownames(prop)
+      
+      if (taxa.name == 'All') {
+        prop <- prop[rowMaxs(prop) > minp & rowSums(prop!=0) > prev*ncol(prop), , drop=FALSE]
+      } else {
+        prop <- prop[taxa.name, , drop=FALSE]
+      }
+      
+    }
+    
+    if (scale == 'logP') {
+      prop <- log10(prop)
+    }
+    
+    
+    hei <- 5
+    if (is.null(strata)) {
+      wid <- 5
+    } else {
+      wid <- 4 * nlevels(df[, strata])
+    }
+    
+    if (scale == 'P') {
+      ylab <- 'Proportion'
+    } else {
+      ylab <- 'log10(Proportion)'
+    }
+    
+    if (is.null(strata)) {
+      for (taxon in rownames(prop)) {
+        taxon.abund <- prop[taxon, ]
+        taxon.abund2 <- taxon.abund
+        if (scale == 'P') {
+          if (rm.outlier == T) {
+            ylims <- c(0, quantile(taxon.abund, qt.outlier) * 1.25)
+            taxon.abund[taxon.abund > quantile(taxon.abund, qt.outlier) * 1.25] <- quantile(taxon.abund, qt.outlier) * 1.25
+          } else {
+            ylims <- c(0, max(taxon.abund))
+          }
+          
+        } else {
+          ylims <- range(taxon.abund)
+        }
+        df2 <- data.frame(x=factor(1:length(taxon.abund)), Value=taxon.abund, Group=grp)			
+        dodge <- position_dodge(width=0.99)
+        obj <- ggplot(df2, aes(x=x, y=Value, fill=Group)) +
+          geom_bar(position=dodge, stat='identity', alpha=0.75) + 
+          facet_grid(. ~ Group, scales='free_x', space="free") +
+          labs(y=ylab, title=headnames[taxon])
+        
+        if (rm.outlier) {
+          obj <- obj + coord_cartesian(ylim = ylims)
+        }
+
+        obj <- obj  + 
+          xlab('') +
+          theme(axis.ticks.x=element_blank(), axis.text.x = element_blank()) +
+          theme(legend.position="none")
+        mean_df <- data.frame(Group=levels(grp), yint = tapply(taxon.abund2, grp, mean))
+        obj <- obj + geom_hline(data = mean_df, aes(yintercept = yint))		
+        mean_df <- data.frame(Group=levels(grp), yint = tapply(taxon.abund2, grp, median))
+        obj <- obj + geom_hline(data = mean_df, aes(yintercept = yint), linetype=2)
+
+      }	
+    } else {
+      for (taxon in rownames(prop)) {
+        taxon.abund <- prop[taxon, ]
+        taxon.abund2 <- taxon.abund
+        if (scale == 'P') {
+          if (rm.outlier == T) {
+            ylims <- c(0, quantile(taxon.abund, qt.outlier) * 1.25)
+            taxon.abund[taxon.abund > quantile(taxon.abund, qt.outlier) * 1.25] <- quantile(taxon.abund, qt.outlier) * 1.25
+          } else {
+            ylims <- c(0, max(taxon.abund))
+          }
+          
+        } else {
+          ylims <- range(taxon.abund)
+        }
+        
+        grp2 <- df[, strata]
+        obj.list <- list()
+        for (level in levels(grp2)) {
+          ind <- grp2 %in% level
+          df2 <- data.frame(x=factor(1:length(taxon.abund[ind])), Value=taxon.abund[ind], Group=grp[ind])	
+          
+          dodge <- position_dodge(width=0.99)
+          obj0 <- ggplot(df2, aes(x=x, y=Value, fill=Group)) +
+            geom_bar(position=dodge, stat='identity', alpha=0.75) + 
+            facet_grid(. ~ Group, scales='free_x', space="free") +
+            labs(y=ylab, title=headnames[taxon])
+          
+          if (rm.outlier) {
+            obj0 <- obj0 + coord_cartesian(ylim = ylims)
+          }
+          
+          
+          obj0 <- obj0  + 
+            xlab(paste(strata, level)) +
+            theme(axis.ticks.x=element_blank(), axis.text.x = element_blank()) +
+            theme(legend.position="none")
+          mean_df <- data.frame(Group=levels(grp[ind]), yint = tapply(taxon.abund2[ind], grp[ind], mean))
+          obj0 <- obj0 + geom_hline(data = mean_df, aes(yintercept = yint))		
+          mean_df <- data.frame(Group=levels(grp[ind]), yint = tapply(taxon.abund2[ind], grp[ind], median))
+          obj0 <- obj0 + geom_hline(data = mean_df, aes(yintercept = yint), linetype=2)
+          obj.list[[level]] <- obj0		
+        }
+        obj <- multiplot(plotlist=obj.list, cols=nlevels(grp2))
+      }	
+      
+    }
+    return(obj)
+  }		
+}
+
+
+generate_taxa_biplot <- function (data.obj, taxa, trans='sqrt', grp.name, ann='', ...) {
+  
+  grp <- data.obj$meta.dat[, grp.name]
+  
+  prop <- NULL
+  for (LOI2 in names(data.obj$abund.list)) {
+    ct <- data.obj$abund.list[[LOI2]]
+    ct <- ct + 1
+    prop0 <- t(t(ct) / colSums(ct))
+    prop <- rbind(prop, prop0[intersect(rownames(prop0), taxa), , drop=FALSE])	
+  }
+  colnames(prop) <- colnames(prop0)
+  if (nrow(prop) != length(taxa)) {
+    warnings('Some taxa not found in abundance lists! Please check the names!\n')
+  }
+  
+  if (trans == 'normal') 	prop <- t(apply(prop, 1, function(x) qqnorm(x, plot=F)$x))
+  if (trans == 'log') prop <- log(prop)
+  if (trans == 'sqrt') prop <- sqrt(prop)
+  if (trans == 'rank') prop <- t(apply(prop, 1, rank))
+  
+  wine.pca <- prcomp(t(prop), scale. = TRUE)
+  g <- ggbiplot(wine.pca, obs.scale = 1, var.scale = 1, 
+                groups = grp, ellipse = TRUE, circle = FALSE, ...) 
+  g <- g + scale_color_discrete(name = '') + theme_bw()
+  g <- g + theme(legend.direction = 'horizontal', legend.position = 'top') 
+  return(g)
+}
+
+# Rev: 2017_02_19 key alignment modified, rowsep, colsep bug
+# Rev: 2017_12_19 row colors fixed
+generate_taxa_heatmap <- function (data.obj, taxa.levels='Genus', taxa='All', meta.info, sam.ord=NULL, data.type='P',  prev=0.1, minp=0.002, 
+                                   row.col.dat='Phyla', phy.no=4, sepwidth=0.01, colsep=NULL, rowsep=NULL, sepcolor='black',
+                                   white='white', colFnsC=NULL, colFnsF=NULL, Rowv=T, Colv=T, dendrogram='both', margins=c(5, 15), in.grid=F,  is.labCol=T, cexCol=1, cexRow=NULL,
+                                   omas=c(1, 1, 1, 8), width=12, height=6, ann='All', return.obj=FALSE, ...) {
+  df <- data.obj$meta.dat
+  prop <- NULL
+  if ('Species' %in% taxa.levels & !('Species' %in% names(data.obj$abund.list))) {
+    data.obj$abund.list[['Species']] <- data.obj$otu.tab
+    rownames(data.obj$abund.list[['Species']]) <- paste0("OTU", rownames(data.obj$otu.tab), ":", 
+                                                         data.obj$otu.name[, 'Phylum'], ";", data.obj$otu.name[, 'Genus'])
+  }
+  
+  for (LOI in taxa.levels) {
+    cat(LOI, "\n")
+    
+    if (LOI == 'All') {
+      if (taxa[1] == 'All') {
+        stop("Please specify the taxa names that will be included in the heatmap!\n")
+      } 
+      prop <- NULL
+      for (LOI2 in names(data.obj$abund.list)) {
+        ct <- data.obj$abund.list[[LOI2]]
+        prop0 <- t(t(ct) / colSums(ct))
+        prop <- rbind(prop, prop0[intersect(rownames(prop0), taxa), , drop=FALSE])	
+        
+      }
+      colnames(prop) <- colnames(prop0)
+      if (nrow(prop) != length(taxa)) {
+        warnings('Some taxa not found in abundance lists! Please check the names!\n')
+      }
+      
+    } else {
+      ct <- data.obj$abund.list[[LOI]]
+      prop <- t(t(ct) / colSums(ct))
+      
+      if (taxa[1] != 'All') {
+        prop <- prop[taxa, , drop=FALSE]
+      } else {
+        prop <- prop[rowMaxs(prop) > minp & rowSums(prop!=0) > prev*ncol(prop), , drop=FALSE]	
+      }			
+    }
+    
+    # Deal with zeros
+    if (data.type == 'B') {
+      col.scheme <- c("lightyellow", "red")
+      prop[, ] <- as.numeric(prop != 0)
+      breaks <- c(-0.01, 0.01, 1.1)
+    } 
+    if (data.type == 'P'){
+      col.scheme = c(white, brewer.pal(11, "Spectral"))
+      ind.temp <- prop != 0
+      minp <- min(prop[prop!=0])/1.1
+      prop[prop==0] <- minp
+      prop <- log10(prop)
+      breaks <- c(log10(minp)-0.01, seq(log10(minp)+0.01, 0, len=12))
+    }
+    if (data.type == 'R'){
+      col.scheme <- c(white, colorRampPalette(rev(brewer.pal(9, "RdYlBu")))(ncol(prop)-1))
+      
+      prop <- t(apply(prop, 1, function(x) {
+        temp <- rank(x[x!=0])
+        s <- (ncol(prop) - 1) / (max(temp) - min(temp))
+        temp <- 1 + (temp - min(temp)) * s
+        x[x!=0] <- temp
+        x
+      }))
+      breaks <- seq(0, ncol(prop), len=ncol(prop)+1)
+    }
+  }
+  
+  phy <- sapply(strsplit(rownames(prop), ";"), function(x) x[1])
+  
+  obj <- main_heatmap(prop, colors=col.scheme) %>% 
+    add_row_annotation(phy) %>%
+    add_col_annotation(as.data.frame(data.obj$meta.dat[,meta.info, drop=FALSE])) %>% 
+    add_row_clustering() %>% 
+    add_col_clustering()
+    
+  return(obj)
+  
+}

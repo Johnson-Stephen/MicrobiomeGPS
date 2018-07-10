@@ -266,20 +266,20 @@ shinyApp(
                   box(width=9,
                       tabBox(width=9,
                              tabPanel("Boxplots",
-                                      htmlOutput("taxa_boxplots")
+                                      plotOutput("taxa_boxplots")
                              ),
                              tabPanel("Barplots",
-                                      htmlOutput("taxa_barplots")
+                                      plotOutput("taxa_barplots")
                              ),
                              tabPanel("Effect size",
-                                      htmlOutput("effect_size")
+                                      plotOutput("effect_size")
                              ),
                              tabPanel("PCA biplot",
-                                      htmlOutput("taxa_biplot")
+                                      plotOutput("taxa_biplot")
                              ),
                              tabPanel("Heatmaps",
-                                      htmlOutput("taxa_prop_heatmap"),
-                                      htmlOutput("taxa_rank_heatmap")
+                                      iheatmaprOutput("taxa_prop_heatmap"),
+                                      iheatmaprOutput("taxa_rank_heatmap")
                              ),
                              tabPanel("Cladogram",
                                       htmlOutput("cladogram")
@@ -464,7 +464,7 @@ shinyApp(
     
     beta <- reactiveValues(ord=NULL,clust=NULL,barplot=NULL,boxplot=NULL,permanova=NULL,mirkat=NULL,disper=NULL)
     
-    dif_vis <- reactiveValues(val=NULL)
+    diff_vis <- reactiveValues(val=NULL)
     
     samples_removed_vector <- reactiveValues(val=NULL)
     samples_kept_vector <- reactiveValues(val=NULL)
@@ -857,11 +857,12 @@ shinyApp(
             x
           }))
         }
+        phy <- sapply(strsplit(rownames(prop), ";"), function(x) x[1])
         main_heatmap(prop, colors=col.scheme) %>% 
-          add_col_clustering() %>% 
-          add_row_clustering() %>% 
-          add_col_annotation(as.data.frame(data$val$meta.dat[,input$category, drop=FALSE])) %>% 
-          add_row_annotation(data$val$otu.name[,"Phylum"])
+          add_row_annotation(phy) %>%
+          add_col_annotation(as.data.frame(data$val$meta.dat[,input$category, drop=FALSE])) %>%
+          add_row_clustering() %>%
+          add_col_clustering()
       })
     })
     
@@ -1108,29 +1109,24 @@ shinyApp(
     })
     
     observeEvent(input$run_taxa,{
-      output$taxa_boxplots <- renderText({
-        name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_DifferentialAbundance_AbundanceBoxplot_sqrt_', input$mult_test, '_', input$sig_level / 100, '_', input$taxa_method ,'_.pdf"></iframe>')
-        return(name)
+      
+      output$taxa_boxplots <- renderPlot({
+        diff_vis$val$boxplot_aggregate
       })
-      output$taxa_barplots <- renderText({
-        name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_DifferentialAbundance_AbundanceBarplot_sqrt_', input$mult_test, '_', input$sig_level / 100, '_', input$taxa_method ,'_.pdf"></iframe>')
-        return(name)
+      output$taxa_barplots <- renderPlot({
+        diff_vis$val$barplot_aggregate
       })
-      output$effect_size <- renderText({
-        name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_DifferentialAbundance_logPBarplot_', input$mult_test, '_', input$sig_level / 100, '_', input$taxa_method ,'_.pdf"></iframe>')
-        return(name)
+      output$effect_size <- renderPlot({
+        diff_vis$val$effect_size
       })
-      output$taxa_biplot <- renderText({
-        name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_Biplot_', input$mult_test, '_', input$sig_level / 100, '_', input$taxa_method ,'.pdf"></iframe>')
-        return(name)      
+      output$taxa_biplot <- renderPlot({
+        diff_vis$val$biplot   
       })
-      output$taxa_prop_heatmap <- renderText({
-        name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_Heatmap_All_', input$mult_test, '_', input$sig_level / 100, '_', input$taxa_method ,'.pdf"></iframe>')
-        return(name)
+      output$taxa_prop_heatmap <- renderIheatmap({
+        diff_vis$val$prop_heatmap
       })
-      output$taxa_rank_heatmap <- renderText({
-        name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_Heatmap_All_', input$mult_test, '_', input$sig_level / 100, '_Rank_', input$taxa_method ,'.pdf"></iframe>')
-        return(name)
+      output$taxa_rank_heatmap <- renderIheatmap({
+        diff_vis$val$rank_heatmap
       })
       #output$cladogram <- renderText({
       #  name <- paste0('<iframe style="height:600px; width:900px" src="plots/LefSe_', input$category, '/cladogram.pdf"></iframe>')
