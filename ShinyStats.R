@@ -2374,7 +2374,6 @@ perform_differential_analysis <- function (data.obj, grp.name, adj.name=NULL, su
       
       res <- cbind(pv.vec, qv.vec, m.vec, nzm.vec, fc.vec, prv.vec, pc.vec)
       rownames(res) <- rownames(prop)
-      #write.csv(res, paste0("Taxa_DifferentialAbundanceAnalysis_", LOI, "_", ann, ".csv"))
       
       if (mt.method == 'fdr') {
         res.final <- rbind(res.final, res[res[, 'Qvalue'] <= cutoff, , drop=F])
@@ -2387,9 +2386,8 @@ perform_differential_analysis <- function (data.obj, grp.name, adj.name=NULL, su
     
     if (!is.null(res.final)) {
       colnames(res.final) <- colnames(res)
-      #write.csv(res.final, paste0("Taxa_DifferentialAbundanceAnalysis_AllLevels_", mt.method, '_', cutoff, "_", ann, ".csv"))
     }
-    return(list(pv.list=pv.list, fc.list=fc.list, pc.list=pc.list, qv.list=qv.list, m.list=m.list))
+    return(list(pv.list=pv.list, fc.list=fc.list, pc.list=pc.list, qv.list=qv.list, m.list=m.list, res.final=res.final))
   } else {
     if (is.null(method)) {
       method <- 'Spearman'
@@ -2470,7 +2468,6 @@ perform_differential_analysis <- function (data.obj, grp.name, adj.name=NULL, su
       
       res <- cbind(m.vec, fc.vec, pv.vec, qv.vec)
       rownames(res) <- rownames(prop)
-      #write.csv(res, paste0("Taxa_DifferentialAbundanceAnalysis_", LOI, "_", ann, ".csv"))
       
       if (mt.method == 'fdr') {
         res.final <- rbind(res.final, res[res[, 'Qvalue'] <= cutoff, , drop=F])
@@ -2482,7 +2479,6 @@ perform_differential_analysis <- function (data.obj, grp.name, adj.name=NULL, su
     
     if (!is.null(res.final)) {
       colnames(res.final) <- colnames(res)
-      #write.csv(res.final, paste0("Taxa_DifferentialAbundanceAnalysis_AllLevels_", mt.method, '_', cutoff, "_", ann, ".csv"))
     }
     return(list(pv.list=pv.list, fc.list=fc.list, qv.list=qv.list, m.list=m.list, res.final=res.final))
   }

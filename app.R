@@ -285,7 +285,7 @@ shinyApp(
                                       htmlOutput("cladogram")
                              ),
                              tabPanel("Test results",
-                                      htmlOutput("taxa_test_results")
+                                      DT::dataTableOutput("taxa_test_results")
                              )
                       )
                   )
@@ -457,7 +457,7 @@ shinyApp(
     dist.rff <- reactiveValues(val=NULL)
     phylo <- reactiveValues(val=NULL)
     phylo.rff <- reactiveValues(val=NULL)
-    
+    diff.obj.rff <- reactiveValues(val=NULL)
     tables <- reactiveValues(phy.prev=NULL, phy.abund = NULL, fam.prev = NULL, fam.abund = NULL, gen.prev = NULL, gen.abund = NULL)
     
     alpha_results <- reactiveValues(rarefy_curve=NULL,boxplot=NULL,stats=NULL)
@@ -1008,10 +1008,10 @@ shinyApp(
       output$distance_comparison_boxplot <- renderPlot({
         beta$boxplot
       })
-      output$permanova <- renderUI({
-        out <- permanova_tab()
-        div(HTML(as.character(out)),class="shiny-html-output")
-      })
+      #output$permanova <- renderUI({
+      #  out <- permanova_tab()
+      #  div(HTML(as.character(out)),class="shiny-html-output")
+      #})
       output$mirkat <- renderUI({
         out <- mirkat_tab()
         div(HTML(as.character(out)),class="shiny-html-output")
@@ -1075,7 +1075,7 @@ shinyApp(
       n <- 4
       progress$inc(1/n, detail = paste("Performing differential taxa analysis..."))
       set.seed(123)
-      diff.obj.rff <- perform_differential_analysis(data.rff$val, 
+      diff.obj.rff$val <- perform_differential_analysis(data.rff$val, 
                                                     grp.name=input$category, 
                                                     adj.name=NULL, 
                                                     taxa.levels=c('Phylum', 'Class', 'Order', 'Family', 'Genus', 'Species'),
@@ -1088,7 +1088,7 @@ shinyApp(
                                                     ann=input$taxa_method)
       progress$inc(1/n, detail = paste("Creating visualizations for differential analysis..."))
       diff_vis$val <- visualize_differential_analysis(data.rff$val, 
-                                      diff.obj.rff, 
+                                      diff.obj.rff$val, 
                                       grp.name=input$category, 
                                       taxa.levels=input$vis_level, 
                                       mt.method=input$mult_test, 
@@ -1132,10 +1132,13 @@ shinyApp(
       #  name <- paste0('<iframe style="height:600px; width:900px" src="plots/LefSe_', input$category, '/cladogram.pdf"></iframe>')
       #  return(name)
       #})
-      output$taxa_test_results <- renderUI({
-        out <- taxa_test_tab()
-        div(HTML(as.character(out)),class="shiny-html-output")
-      })
+      #output$taxa_test_results <- renderUI({
+      #  out <- taxa_test_tab()
+      #  div(HTML(as.character(out)),class="shiny-html-output")
+      #})
+      output$taxa_test_results <- DT::renderDataTable({
+         diff.obj.rff$val$res.final[,c("Pvalue", "Qvalue", "logFoldChange", "PrevalChange")]
+      }, caption="Differential abundance analysis for all levels")
     })
     
     taxa_test_tab <- function(){
