@@ -2658,6 +2658,7 @@ visualize_differential_analysis <- function (data.obj, diff.obj,  grp.name=NULL,
       
     }
   }
+  results$cladogram <- make_cladogram(data.obj=data.obj, diff.obj=diff.obj, grp.name=grp.name, mt.method=mt.method, cutoff=cutoff)
   return(results)
 }
 
@@ -3351,4 +3352,223 @@ generate_taxa_heatmap <- function (data.obj, taxa.levels='Genus', taxa='All', me
     
   return(obj)
   
+}
+
+clade.anno2 <- function(gtree, anno.data, alpha=0.2, anno.depth=3, anno.x=10, anno.y=40){
+  short.labs <- c(letters, paste0(letters, letters))
+  get_offset <- function(x) {(x*0.2+0.2)^2}
+  get_angle <- function(node){
+    data <- gtree$data
+    sp <- ggtree:::get.offspring.df(data, node)
+    sp2 <- c(sp, node)
+    sp.df <- data[match(sp2, data$node),]
+    mean(range(sp.df$angle))
+  }
+  anno.data = arrange(anno.data, node)
+  hilight.color <- anno.data$color
+  node_list <- anno.data$node
+  node_ids <- (gtree$data %>% filter(label %in% node_list ) %>% arrange(label))$node
+  anno <- rep('white', nrow(gtree$data))
+
+  for(i in 1:length(node_ids)){
+    n <- node_ids[i]
+    color <- hilight.color[i]
+    anno[n] <- color
+    mapping <- gtree$data %>% filter(node == n)
+    nodeClass <- as.numeric(mapping$nodeClass)
+    offset <- get_offset(nodeClass)
+    gtree <-
+      gtree + geom_hilight(node=n, fill=color, alpha=alpha,
+                           extend=offset)
+  }
+  gtree$layers <- rev(gtree$layers)
+  gtree <- gtree + geom_point2(aes(size=I(nodeSize)), fill=anno, shape=21)
+  ## add labels
+  short.labs.anno <- NULL
+  for(i in 1:length(node_ids)){
+    n <- node_ids[i]
+    mapping <- gtree$data %>% filter(node == n)
+    nodeClass <- as.numeric(mapping$nodeClass)
+    lab <- short.labs[1]
+    short.labs <- short.labs[-1]
+    color = anno[n]
+    if(is.null(short.labs.anno)){
+      short.labs.anno = data.frame(lab=lab, annot = mapping$label, node=n, color=color, stringsAsFactors = F)
+    }else{
+      short.labs.anno = rbind(short.labs.anno,
+                              c(lab, mapping$label, n, color))
+    }
+    offset <- get_offset(nodeClass) - 0.4
+    angle <- get_angle(n) + 90
+    gtree <-
+      gtree + geom_cladelabel(node=n, label=lab, fontsize=1.5+sqrt(nodeClass),
+                              offset.text=offset, barsize=0, hjust=0.5)
+  }
+  anno_shapes = sapply(short.labs.anno$lab, utf8ToInt)
+  labels = paste0(short.labs.anno$lab, ": ", gtree$data$label[node_ids])
+  df2 <- unique(anno.data[,c("color", "cat")])
+  df2$x=0
+  df2$y=1
+  df2$alpha=1
+  df3 <- data.frame(color="white", cat="clade", x=0, y=0, alpha=1)
+  df1 <- data.frame(color=anno[node_ids], cat=labels, x=0, y=1, alpha=alpha)
+  df <- rbind(df2, df3, df1)
+  p <- gtree + geom_rect(aes_(fill=~cat, xmin=~x, xmax=~x, ymin=~y, ymax=~y), data=df, inherit.aes=F) + guides(fill=guide_legend(override.aes=list(fill=alpha(df$color, df$alpha)))) + theme(legend.position="right")
+  p
+}
+
+make_cladogram <- function(data.obj, diff.obj, grp.name, cutoff=0.05, prev=0.1, minp=0.002, mt.method="fdr"){
+  
+  df <- data.obj$meta.dat
+  grp <- df[, grp.name]
+  levels(grp) <- paste0(1:nlevels(grp), levels(grp))
+
+  qv.list <- diff.obj$qv.list
+  pv.list <- diff.obj$pv.list
+  fc.list <- diff.obj$fc.list
+  
+  otu.name.12 <- data.obj$otu.name
+  otu.tab.12 <- data.obj$otu.tab
+  tax.family.a <- NULL
+  for (i in 1:6) {
+    tax.family <- apply(otu.name.12[, 1:i, drop=F], 1, paste, collapse=".")
+    phlan.tab <- aggregate(otu.tab.12, by=list(tax.family), FUN=sum)
+    rownames(phlan.tab) <- phlan.tab[, 1]
+    phlan.tab <- as.matrix(phlan.tab [, -1, drop=F])
+    phlan.tab <- t(t(phlan.tab) / colSums(phlan.tab))	
+    phlan.tab <- phlan.tab[rowSums(phlan.tab!=0) > prev*ncol(phlan.tab) & rowMaxs(phlan.tab) > minp, , drop=F]
+    tax.family.a <- c(tax.family.a, rownames(phlan.tab))
+  }
+  alias.a <- sapply(strsplit(tax.family.a, "\\."), function(x) {
+    if (length(x) >= 2) {
+      if (length(x) == 2) {
+        return(x[2])
+      } else {
+        return(paste0(x[2], ";", x[length(x)]))
+      }
+    } else {
+      return(x)
+    }
+  })
+  
+  taxa.names <- NULL
+  abundant.grp.names <- NULL
+  
+  for (LOI in setdiff(names(qv.list), 'Species')) {
+    qv.vec <- qv.list[[LOI]]
+    pv.vec <- pv.list[[LOI]]
+    
+    fc.vec <- fc.list[[LOI]]
+    if (mt.method == 'fdr') {
+      taxa.name <- rownames(qv.vec)[qv.vec <= cutoff]
+      abundant.grp.name <- apply(fc.vec, 1, function(x) levels(grp)[as.numeric(x >= 0) + 1])[qv.vec <= cutoff]
+    }
+    
+    if (mt.method == 'raw') {
+      taxa.name <- rownames(pv.vec)[pv.vec <= cutoff]
+      abundant.grp.name <- apply(fc.vec, 1, function(x) levels(grp)[as.numeric(x >= 0) + 1])[pv.vec <= cutoff]
+    }
+    
+    if (length(taxa.name) != 0) {
+      taxa.names <- c(taxa.names, taxa.name)
+      abundant.grp.names <- c(abundant.grp.names, abundant.grp.name)
+    }
+  }
+  
+  # remove 'unclassified'
+  abundant.grp.names <- abundant.grp.names[!grepl('unclassified', taxa.names, ignore.case=T)]
+  taxa.names <- taxa.names[!grepl('unclassified', taxa.names, ignore.case=T)]
+  
+  ind <- match(taxa.names, alias.a)
+  na.ind <- !is.na(ind)
+  
+  phlan <- cbind(tax.family.a, '1.5', '\t', '\t', '-')
+  
+  phlan[ind[na.ind], 2:5] <- cbind('3.5',  abundant.grp.names[na.ind], '3.0', '-')
+  
+  tax_chars2 <- c('k', 'p', 'c', 'o', 'f', 'g')
+  
+  phlan2 <- phlan
+  
+  phlan2[,1] <- unlist(lapply(phlan[,1], function(x){
+    spl <- strsplit(x, '\\.')
+    paste(paste0(tax_chars2, "__", spl[[1]])[1:length(spl[[1]])], collapse='|')
+  }))
+  
+  tips <- names(tax.family[which(tax.family %in% tax.family.a)])
+  tree <- data.obj$tree
+  pruned <- drop.tip(data.obj$tree,data.obj$tree$tip.label[-match(tips,data.obj$tree$tip.label)])
+  pruned$tip.label <- tax.family[pruned$tip.label]
+  
+  nodes <- lapply(unique(pruned$tip.label[duplicated(pruned$tip.label)]), function(x){
+    ggtree::MRCA(pruned, tip=c(x,x))
+  })
+  
+  pruned2 <- ggtree(pruned, layout="circular")
+  
+  for(x in unlist(nodes)){
+    pruned2 <- ggtree::collapse(pruned2, node=x)
+  }
+  
+  ###Nodes to highlight
+  highlight <- sapply(strsplit(phlan2[which(phlan2[,2] == "3.5"),][,1], "\\|"), tail, 1)
+  nolight <- sapply(strsplit(phlan2[which(phlan2[,2] != "3.5"),][,1], "\\|"), tail, 1)
+  cat <- phlan2[which(phlan2[,2] == "3.5"),3]
+  nocat <- phlan2[which(phlan2[,2] != "3.5"),3]
+  nocat[nocat=="\t"] <- "NA"
+  anno.data <- data.frame(node=highlight, cat=cat)
+  palette <- I(brewer.pal(max(nlevels(anno.data$cat), 3), name='Set1'))[1:nlevels(anno.data$cat)]
+  anno.data$color <- palette[anno.data$cat]
+  testtree <- parseLefse(phlan)
+  
+  p <- tree.backbone(testtree)
+  p <- clade.anno2(p, anno.data)
+  p
+}
+
+parseLefse <- function(phlan, index=1, header=FALSE, delimiter='\\.', node.size.scale=1, node.size.offset=1){
+  taxtab2 <- as.data.frame(phlan[,1:3])
+  names(taxtab2)[1] <- 'tax'
+  names(taxtab2)[2] <- 'score'
+  names(taxtab2)[3] <- 'grp'
+  taxtab2$tax <- as.character(taxtab2$tax)
+  taxtab2 <- taxtab2 %>% slice(grep('unclassified', .[,index], invert=TRUE))
+  
+  tax_chars2 <- c('k', 'p', 'c', 'o', 'f', 'g')
+  tax_split2 <- lapply(taxtab2$tax, function(x){
+    spl <- strsplit(x, '\\.')
+    tmp <- paste0(tax_chars2, "__", spl[[1]])[1:length(spl[[1]])]
+    gsub("-","",tmp)
+  })     ## split into different taxonomy levels
+  child2 <- vapply(tax_split2, tail, n=1, '')
+  tax_class2 <- do.call(rbind, strsplit(child2, '__'))[,1]
+  parent2 <- vapply(tax_split2, function(x) ifelse(length(x)>1, x[length(x)-1], 'root'), '')
+  isTip2 <- !child2 %in% parent2
+  index2 <- c()
+  index2[isTip2] <- 1:sum(isTip2)
+  index2[!isTip2] <- (sum(isTip2)+1):length(isTip2)
+  ## tips comes first
+  mapping2 <- data.frame(node=index2, row.names=make.names(child2, unique=TRUE), taxa.names=child2, isTip2, check.names = FALSE)
+  edges2 <- cbind(mapping2[parent2,]$node, mapping2$node)
+  edges2 <- edges2[!is.na(edges2[,1]),]
+  
+  a <- node.size.scale
+  b <- node.size.offset
+  mapping2$nodeSize <- a+b
+  ###mapping2$nodeSize <- a*log(mapping$taxaAbun) + b
+  mapping2$nodeClass <- factor(tax_class2, levels = rev(tax_chars2))
+  
+  mapping2 <- mapping2[order(mapping2$node),]
+  
+  node.label2 <- rownames(mapping2)[!mapping2$isTip2]
+  phylo <- structure(list(edge = edges2,
+                          node.label = node.label2,
+                          tip.label = rownames(mapping2)[mapping2$isTip2],
+                          edge.length=rep(1, nrow(edges2)),
+                          Nnode = length(node.label2)
+  ),
+  class = "phylo")
+  
+  d <- mapping2 %>% select_(~-isTip2)
+  testtree <- treedata(phylo = phylo, data = as_data_frame(d))
 }

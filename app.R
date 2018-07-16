@@ -56,6 +56,9 @@ library(iheatmapr)
 library(RColorBrewer)
 library(reshape2)
 library(plotly)
+library(ggtree)
+library(microbiomeViz)
+library(tidytree)
 options(shiny.maxRequestSize = 100*1024^2)
 shinyApp(
   ui = dashboardPage(
@@ -282,7 +285,7 @@ shinyApp(
                                       iheatmaprOutput("taxa_rank_heatmap")
                              ),
                              tabPanel("Cladogram",
-                                      htmlOutput("cladogram")
+                                      plotOutput("cladogram")
                              ),
                              tabPanel("Test results",
                                       DT::dataTableOutput("taxa_test_results")
@@ -469,7 +472,7 @@ shinyApp(
     samples_removed_vector <- reactiveValues(val=NULL)
     samples_kept_vector <- reactiveValues(val=NULL)
     
-    source("ShinyStats.R")
+    debugSource("ShinyStats.R")
     
     output$columns = renderUI({
       mydata = get(input$dataset)
@@ -1008,10 +1011,10 @@ shinyApp(
       output$distance_comparison_boxplot <- renderPlot({
         beta$boxplot
       })
-      #output$permanova <- renderUI({
-      #  out <- permanova_tab()
-      #  div(HTML(as.character(out)),class="shiny-html-output")
-      #})
+      output$permanova <- renderUI({
+        out <- permanova_tab()
+        div(HTML(as.character(out)),class="shiny-html-output")
+      })
       output$mirkat <- renderUI({
         out <- mirkat_tab()
         div(HTML(as.character(out)),class="shiny-html-output")
@@ -1094,18 +1097,7 @@ shinyApp(
                                       mt.method=input$mult_test, 
                                       cutoff=input$sig_level / 100, 
                                       ann=input$taxa_method)
-      progress$inc(1/n, detail = paste("Beginning LEfSe analysis. Creating format..."))
-      #create_lefse_format(data.rff$val, 
-      #                    diff.obj.rff, 
-      #                    grp.name=input$category, 
-      #                    cutoff=input$sig_level / 100, 
-      #                    prev=input$taxa_prev / 100, 
-      #                    minp=input$taxa_abund / 100, 
-      #                    mt.method=input$mult_test)
-      progress$inc(1/n, detail = paste("Performing LEfSe analysis..."))
-      #system("source runENV.sh")
       save(diff.obj.rff, file="DiffData.RData")
-      #perform_lefse_analysis(data.rff$val, grp.name=input$category, ann=input$category)
     })
     
     observeEvent(input$run_taxa,{
@@ -1128,28 +1120,13 @@ shinyApp(
       output$taxa_rank_heatmap <- renderIheatmap({
         diff_vis$val$rank_heatmap
       })
-      #output$cladogram <- renderText({
-      #  name <- paste0('<iframe style="height:600px; width:900px" src="plots/LefSe_', input$category, '/cladogram.pdf"></iframe>')
-      #  return(name)
-      #})
-      #output$taxa_test_results <- renderUI({
-      #  out <- taxa_test_tab()
-      #  div(HTML(as.character(out)),class="shiny-html-output")
-      #})
+      output$cladogram <- renderPlot({
+        diff_vis$val$cladogram
+      })
       output$taxa_test_results <- DT::renderDataTable({
          diff.obj.rff$val$res.final[,c("Pvalue", "Qvalue", "logFoldChange", "PrevalChange")]
       }, caption="Differential abundance analysis for all levels")
     })
-    
-    taxa_test_tab <- function(){
-      mytab <- read.csv(paste0("Taxa_DifferentialAbundanceAnalysis_AllLevels_", input$mult_test, "_", input$sig_level/100, "_", input$taxa_method,".csv"))
-      names(mytab)[1] <- "Taxa"
-      table <- print(xtable(mytab[,c(1,2,3,4,5,8)], caption="Differential abundance analysis for all levels"),
-                     type="html", 
-                     html.table.attributes='class="data table table-bordered table-condensed"', 
-                     caption.placement="top")
-      return(table)
-    }
     
     output$pred_text <- renderText({
       submit_pred()
@@ -1262,7 +1239,6 @@ shinyApp(
       progress$inc(1/n, detail = paste("Generating COG visualizations..."))
       visualize_differential_analysis(data.rff$val, diff.obj.rff, grp.name=input$category, cutoff=input$func_sig_level / 100, taxa.levels=c('COG_Category2'), 
                                       ann='COG', scale='none', mt.method=input$func_mult_test)
-      ##save
     })
     observeEvent(input$run_func,{
       output$kegg_barplot_agg <- renderText({
