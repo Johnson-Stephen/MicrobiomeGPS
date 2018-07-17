@@ -353,29 +353,29 @@ shinyApp(
                   box(width=9,
                       tabBox(width=9,
                              tabPanel("KEGG barplots",
-                                      htmlOutput("kegg_barplot_agg"),
-                                      htmlOutput("kegg_barplot_ind")
+                                      plotOutput("kegg_barplot_agg"),
+                                      plotOutput("kegg_barplot_ind")
                              ),
                              tabPanel("KEGG boxplots",
-                                      htmlOutput("kegg_boxplot_agg"),
-                                      htmlOutput("kegg_boxplot_ind")
+                                      plotOutput("kegg_boxplot_agg"),
+                                      plotOutput("kegg_boxplot_ind")
                              ),
                              tabPanel("KEGG effect size",
-                                      htmlOutput("kegg_effect")
+                                      plotOutput("kegg_effect")
                              ),
                              tabPanel("KEGG test results",
                                       htmlOutput("kegg_test")
                              ),
                              tabPanel("COG barplots",
-                                      htmlOutput("cog_barplot_agg"),
-                                      htmlOutput("cog_barplot_ind")
+                                      plotOutput("cog_barplot_agg"),
+                                      plotOutput("cog_barplot_ind")
                              ),
                              tabPanel("COG boxplots",
-                                      htmlOutput("cog_boxplot_agg"),
-                                      htmlOutput("cog_boxplot_ind")
+                                      plotOutput("cog_boxplot_agg"),
+                                      plotOutput("cog_boxplot_ind")
                              ),
                              tabPanel("COG effect size",
-                                      htmlOutput("cog_effect")
+                                      plotOutput("cog_effect")
                              ),
                              tabPanel("COG test results",
                                       htmlOutput("cog_test")
@@ -461,6 +461,8 @@ shinyApp(
     phylo <- reactiveValues(val=NULL)
     phylo.rff <- reactiveValues(val=NULL)
     diff.obj.rff <- reactiveValues(val=NULL)
+    func.obj.rff <- reactiveValues(kegg=NULL, cog=NULL)
+    func_vis <- reactiveValues(kegg=NULL, cog=NULL)
     tables <- reactiveValues(phy.prev=NULL, phy.abund = NULL, fam.prev = NULL, fam.abund = NULL, gen.prev = NULL, gen.abund = NULL)
     
     alpha_results <- reactiveValues(rarefy_curve=NULL,boxplot=NULL,stats=NULL)
@@ -1199,13 +1201,15 @@ shinyApp(
       progress$set(message = "Begin functional diversity analysis", value = 0)
       n <- 8
       progress$inc(1/n, detail = paste("Generating KEGG boxplots..."))
-      generate_taxa_boxplot(data.rff$val, grp.name=input$category, strata=NULL, rm.outlier=F, prev=input$func_prev / 100, minp=input$func_abund / 100, 
-                            taxa.levels=c('KEGG_Metabolism'), ann='KEGG')
+      #####REMAKE THIS
+      ##generate_taxa_boxplot(data.rff$val, grp.name=input$category, strata=NULL, rm.outlier=F, prev=input$func_prev / 100, minp=input$func_abund / 100, 
+      ##                      taxa.levels=c('KEGG_Metabolism'), ann='KEGG')
       progress$inc(1/n, detail = paste("Generating KEGG barplots..."))
-      generate_taxa_barplot(data.rff$val, grp.name=input$category, strata=NULL, prev=input$func_prev / 100, minp=input$func_abund / 100,
-                            taxa.levels=c('KEGG_Metabolism'), ann='KEGG')
+      ####REMAKE THIS
+      ##generate_taxa_barplot(data.rff$val, grp.name=input$category, strata=NULL, prev=input$func_prev / 100, minp=input$func_abund / 100,
+      ##                      taxa.levels=c('KEGG_Metabolism'), ann='KEGG')
       progress$inc(1/n, detail = paste("Performing KEGG differential analysis..."))
-      diff.obj.rff <- perform_differential_analysis(data.rff$val, 
+      func.obj.rff$kegg <- perform_differential_analysis(data.rff$val, 
                                                     grp.name=input$category, 
                                                     adj.name=NULL,
                                                     method=input$func_method, 
@@ -1216,17 +1220,19 @@ shinyApp(
                                                     taxa.levels=c('KEGG_Metabolism'), 
                                                     ann=paste0('KEGG_', input$func_method))
       progress$inc(1/n, detail = paste("Generating KEGG visualizations..."))
-      visualize_differential_analysis(data.rff$val, diff.obj.rff, grp.name=input$category, cutoff=input$func_sig_level / 100, taxa.levels=c('KEGG_Metabolism'), 
+      func_vis$kegg <- visualize_differential_analysis(data.rff$val, func.obj.rff$kegg, grp.name=input$category, cutoff=input$func_sig_level / 100, taxa.levels=c('KEGG_Metabolism'), 
                                       ann='KEGG', scale='none', mt.method=input$func_mult_test)
       
       progress$inc(1/n, detail = paste("Generating COG boxplots..."))
-      generate_taxa_boxplot(data.rff$val, grp.name=input$category, strata=NULL, rm.outlier=F, prev=input$func_prev / 100, minp=input$func_abund / 100,
-                            taxa.levels=c('COG_Category2'), ann='COG')
+      ####REMAKE THIS
+      #generate_taxa_boxplot(data.rff$val, grp.name=input$category, strata=NULL, rm.outlier=F, prev=input$func_prev / 100, minp=input$func_abund / 100,
+      #                      taxa.levels=c('COG_Category2'), ann='COG')
       progress$inc(1/n, detail = paste("Generating COG barplots..."))
-      generate_taxa_barplot(data.rff$val, grp.name=input$category, strata=NULL, prev=input$func_prev / 100, minp=input$func_abund / 100,
-                            taxa.levels=c('COG_Category2'), ann='COG')
+      ####REMAKE THIS
+      #generate_taxa_barplot(data.rff$val, grp.name=input$category, strata=NULL, prev=input$func_prev / 100, minp=input$func_abund / 100,
+      #                      taxa.levels=c('COG_Category2'), ann='COG')
       progress$inc(1/n, detail = paste("Performing COG differential analysis..."))
-      diff.obj.rff <- perform_differential_analysis(data.rff$val, 
+      func.obj.rff$cog <- perform_differential_analysis(data.rff$val, 
                                                     grp.name=input$category, 
                                                     adj.name=NULL,
                                                     method=input$func_method, 
@@ -1237,57 +1243,75 @@ shinyApp(
                                                     taxa.levels=c('COG_Category2'), 
                                                     ann=paste0('COG_', input$func_method))
       progress$inc(1/n, detail = paste("Generating COG visualizations..."))
-      visualize_differential_analysis(data.rff$val, diff.obj.rff, grp.name=input$category, cutoff=input$func_sig_level / 100, taxa.levels=c('COG_Category2'), 
+      func_vis$cog <- visualize_differential_analysis(data.rff$val, func.obj.rff$cog, grp.name=input$category, cutoff=input$func_sig_level / 100, taxa.levels=c('COG_Category2'), 
                                       ann='COG', scale='none', mt.method=input$func_mult_test)
     })
     observeEvent(input$run_func,{
-      output$kegg_barplot_agg <- renderText({
-        name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_DifferentialAbundance_AbundanceBarplot_none_fdr_0.1_KEGG_.pdf"></iframe>')
-        return(name)
+      
+      prop_kegg <- prop.table(data.rff$val$abund.list[['KEGG_Metabolism']],2)
+      prop_kegg.m <- melt(prop_kegg[rev(order(rowMeans(prop_kegg))),])
+      prop_kegg.m$factor1 <- data.rff$val$meta.dat[match(prop_kegg.m$Var2, rownames(data.rff$val$meta.dat)), input$category]
+      
+      prop_cog <- prop.table(data.rff$val$abund.list[['COG_Category2']],2)
+      prop_cog.m <- melt(prop_cog[rev(order(rowMeans(prop_cog))),])
+      prop_cog.m$factor1 <- data.rff$val$meta.dat[match(prop_cog.m$Var2, rownames(data.rff$val$meta.dat)), input$category]
+      
+      output$kegg_barplot_agg <- renderPlot({
+        func_vis$kegg$barplot_aggregate
+        #ggplot(prop_kegg.m, aes(factor1, value, fill = Var1, key=Var1) ) +
+        #       geom_bar(position="fill", stat="identity") +
+        #       guides(fill=FALSE) + scale_fill_manual(values = rep(brewer.pal(12, "Set3"), length(unique(prop_kegg.m$Var1))/11))
       })
       output$kegg_barplot_ind <- renderText({
-        name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_Barplot_All_P_fdr_0.1_KEGG_.pdf"></iframe>')
-        return(name)
+        #name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_Barplot_All_P_fdr_0.1_KEGG_.pdf"></iframe>')
+        #return(name)
       })
       output$kegg_boxplot_agg <- renderText({
-        name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_DifferentialAbundance_AbundanceBoxplot_none_fdr_0.1_KEGG_.pdf"></iframe>')
-        return(name)
+        func_vis$kegg$boxplot_aggregate
+        #ggplot(prop_kegg.m, aes(factor1, value, fill = Var1, key=Var1) ) +
+        #  geom_box(stat="identity") +
+        #  guides(fill=FALSE) + scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Set3"))(length(unique(prop_kegg.m$Var1))))
       })
       output$kegg_boxplot_ind <- renderText({
-        name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_Boxplot_All_P_fdr_0.1_KEGG_.pdf"></iframe>')
-        return(name)
+        #name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_Boxplot_All_P_fdr_0.1_KEGG_.pdf"></iframe>')
+        #return(name)
       })
-      output$kegg_effect <- renderText({
-        name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_DifferentialAbundance_logPBarplot_fdr_0.1_KEGG_.pdf"></iframe>')
-        return(name)
+      output$kegg_effect <- renderPlot({
+        func_vis$kegg$effect_size
+        #name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_DifferentialAbundance_logPBarplot_fdr_0.1_KEGG_.pdf"></iframe>')
+        #return(name)
       })
       output$kegg_test <- renderUI({
-        out <- kegg_test_tab()
-        div(HTML(as.character(out)),class="shiny-html-output")
+        #out <- kegg_test_tab()
+        #div(HTML(as.character(out)),class="shiny-html-output")
       })
-      output$cog_barplot_agg <- renderText({
-        name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_DifferentialAbundance_AbundanceBarplot_none_fdr_0.1_COG_.pdf"></iframe>')
-        return(name)
+      output$cog_barplot_agg <- renderPlot({
+        func_vis$cog$barplot_aggregate
+        #ggplot(prop_cog.m, aes(factor1, value, fill = Var1, key=Var1) ) +
+        #  geom_bar(stat="identity") +
+        #  guides(fill=FALSE) + scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Set3"))(length(unique(prop_cog.m$Var1))))
       })
       output$cog_barplot_ind <- renderText({
-        name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_Barplot_All_P_fdr_0.1_COG_.pdf"></iframe>')
-        return(name)
+        #name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_Barplot_All_P_fdr_0.1_COG_.pdf"></iframe>')
+        #return(name)
       })
-      output$cog_boxplot_agg <- renderText({
-        name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_DifferentialAbundance_AbundanceBoxplot_none_fdr_0.1_COG_.pdf"></iframe>')
-        return(name)
+      output$cog_boxplot_agg <- renderPlot({
+        func_vis$cog$boxplot_aggregate
+        #name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_DifferentialAbundance_AbundanceBoxplot_none_fdr_0.1_COG_.pdf"></iframe>')
+        #return(name)
       })
       output$cog_boxplot_ind <- renderText({
-        name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_Boxplot_All_P_fdr_0.1_COG_.pdf"></iframe>')
-        return(name)
+        #name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_Boxplot_All_P_fdr_0.1_COG_.pdf"></iframe>')
+        #return(name)
       })
-      output$cog_effect <- renderText({
-        name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_DifferentialAbundance_logPBarplot_fdr_0.1_COG_.pdf"></iframe>')
-        return(name)
+      output$cog_effect <- renderPlot({
+        func_vis$cog$effect_size
+        #name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_DifferentialAbundance_logPBarplot_fdr_0.1_COG_.pdf"></iframe>')
+        #return(name)
       })
       output$cog_test <- renderUI({
-        out <- cog_test_tab()
-        div(HTML(as.character(out)),class="shiny-html-output")
+        #out <- cog_test_tab()
+        #div(HTML(as.character(out)),class="shiny-html-output")
       })
     })
     

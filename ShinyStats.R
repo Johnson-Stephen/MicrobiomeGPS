@@ -2658,7 +2658,9 @@ visualize_differential_analysis <- function (data.obj, diff.obj,  grp.name=NULL,
       
     }
   }
-  results$cladogram <- make_cladogram(data.obj=data.obj, diff.obj=diff.obj, grp.name=grp.name, mt.method=mt.method, cutoff=cutoff)
+  if(length(intersect(taxa.levels, c('Phylum', 'Family', 'Genus')))){
+    results$cladogram <- make_cladogram(data.obj=data.obj, diff.obj=diff.obj, grp.name=grp.name, mt.method=mt.method, cutoff=cutoff)
+  }
   return(results)
 }
 
