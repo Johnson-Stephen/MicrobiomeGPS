@@ -2704,7 +2704,7 @@ taxa_barplot_aggregate <- function (prop, df, grp.name, strata=NULL, scale='sqrt
       geom_errorbar(limits, position=dodge, size=0.25, width=0.25) +
       labs(y=paste(ylab), x='') +
       theme(axis.text.x = element_text(angle = 90, hjust = 1, size=xsize)) +
-      theme(legend.position="top", legend.title=element_blank())
+      theme(legend.position="top", legend.title=element_blank()) + coord_flip()
     
     if (scale == 'sqrt') {
       obj1 <- obj1 + scale_y_sqrt(

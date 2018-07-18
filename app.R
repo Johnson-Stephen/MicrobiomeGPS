@@ -150,7 +150,7 @@ shinyApp(
                       h3(textOutput("summary_status", container = span))
                   ),
                   box(width=9,
-                      tabBox(width=9,
+                      tabBox(width=12,
                         tabPanel("Sequencing statistics",
                                  plotOutput("cov_dist", width=900, height=600),
                                  plotOutput("cov_boxplot", width=900, height=600)
@@ -190,7 +190,7 @@ shinyApp(
                       verbatimTextOutput("alpha_text")
                   ),
                   box(width=9,
-                      tabBox(width=9,
+                      tabBox(width=12,
                              tabPanel("Rarefaction",
                                       fluidRow(
                                         h2("Rarefaction Curve"),
@@ -224,7 +224,7 @@ shinyApp(
                       verbatimTextOutput("beta_text")
                   ),
                   box(width=9,
-                      tabBox(width=9,
+                      tabBox(width=12,
                              tabPanel("Ordination",
                                       plotlyOutput("ordination", width=900, height=600)         
                              ),
@@ -267,7 +267,7 @@ shinyApp(
                       verbatimTextOutput("taxa_text")
                   ),
                   box(width=9,
-                      tabBox(width=9,
+                      tabBox(width=12,
                              tabPanel("Boxplots",
                                       plotOutput("taxa_boxplots")
                              ),
@@ -311,7 +311,7 @@ shinyApp(
                       verbatimTextOutput("pred_text")
                   ),
                   box(width=9,
-                      tabBox(width=9,
+                      tabBox(width=12,
                              tabPanel("Prediction evaluation",
                                       imageOutput("classification_error", width=900, height=600)
                              ),
@@ -351,9 +351,9 @@ shinyApp(
                       verbatimTextOutput("func_text")
                   ),
                   box(width=9,
-                      tabBox(width=9,
+                      tabBox(width=12,
                              tabPanel("KEGG barplots",
-                                      plotOutput("kegg_barplot_agg"),
+                                      plotOutput("kegg_barplot_agg", height="auto"),
                                       plotOutput("kegg_barplot_ind")
                              ),
                              tabPanel("KEGG boxplots",
@@ -395,7 +395,7 @@ shinyApp(
                       verbatimTextOutput("subtype_text")
                   ),
                   box(width=9,
-                      tabBox(width=9,
+                      tabBox(width=12,
                              tabPanel("Gap statistic",
                                       htmlOutput("gap_statistic")
                              ),
@@ -1257,7 +1257,10 @@ shinyApp(
       prop_cog.m$factor1 <- data.rff$val$meta.dat[match(prop_cog.m$Var2, rownames(data.rff$val$meta.dat)), input$category]
       
       output$kegg_barplot_agg <- renderPlot({
-        func_vis$kegg$barplot_aggregate
+          func_vis$kegg$barplot_aggregate
+        }, height=function(){
+              session$clientData$output_kegg_barplot_agg_width  
+        
         #ggplot(prop_kegg.m, aes(factor1, value, fill = Var1, key=Var1) ) +
         #       geom_bar(position="fill", stat="identity") +
         #       guides(fill=FALSE) + scale_fill_manual(values = rep(brewer.pal(12, "Set3"), length(unique(prop_kegg.m$Var1))/11))
