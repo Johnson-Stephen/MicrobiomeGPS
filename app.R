@@ -353,8 +353,15 @@ shinyApp(
                   box(width=9,
                       tabBox(width=12,
                              tabPanel("KEGG barplots",
-                                      plotOutput("kegg_barplot_agg", height="auto"),
-                                      plotOutput("kegg_barplot_ind")
+                                      tabBox(width=12,
+                                        tabPanel("Aggregate",
+                                          plotOutput("kegg_barplot_agg", height="auto")
+                                        ),
+                                        tabPanel("Individual",
+                                          uiOutput("kegg_lvl_select"),
+                                          plotOutput("kegg_barplot_ind")
+                                        )
+                                      )
                              ),
                              tabPanel("KEGG boxplots",
                                       plotOutput("kegg_boxplot_agg"),
@@ -464,6 +471,8 @@ shinyApp(
     func.obj.rff <- reactiveValues(kegg=NULL, cog=NULL)
     func_vis <- reactiveValues(kegg=NULL, cog=NULL)
     tables <- reactiveValues(phy.prev=NULL, phy.abund = NULL, fam.prev = NULL, fam.abund = NULL, gen.prev = NULL, gen.abund = NULL)
+    func_tbl <- reactiveValues(kegg=NULL, cog=NULL)
+    
     
     alpha_results <- reactiveValues(rarefy_curve=NULL,boxplot=NULL,stats=NULL)
     
@@ -1199,15 +1208,7 @@ shinyApp(
       progress <- shiny::Progress$new()
       on.exit(progress$close())
       progress$set(message = "Begin functional diversity analysis", value = 0)
-      n <- 8
-      progress$inc(1/n, detail = paste("Generating KEGG boxplots..."))
-      #####REMAKE THIS
-      ##generate_taxa_boxplot(data.rff$val, grp.name=input$category, strata=NULL, rm.outlier=F, prev=input$func_prev / 100, minp=input$func_abund / 100, 
-      ##                      taxa.levels=c('KEGG_Metabolism'), ann='KEGG')
-      progress$inc(1/n, detail = paste("Generating KEGG barplots..."))
-      ####REMAKE THIS
-      ##generate_taxa_barplot(data.rff$val, grp.name=input$category, strata=NULL, prev=input$func_prev / 100, minp=input$func_abund / 100,
-      ##                      taxa.levels=c('KEGG_Metabolism'), ann='KEGG')
+      n <- 4
       progress$inc(1/n, detail = paste("Performing KEGG differential analysis..."))
       func.obj.rff$kegg <- perform_differential_analysis(data.rff$val, 
                                                     grp.name=input$category, 
@@ -1223,14 +1224,6 @@ shinyApp(
       func_vis$kegg <- visualize_differential_analysis(data.rff$val, func.obj.rff$kegg, grp.name=input$category, cutoff=input$func_sig_level / 100, taxa.levels=c('KEGG_Metabolism'), 
                                       ann='KEGG', scale='none', mt.method=input$func_mult_test)
       
-      progress$inc(1/n, detail = paste("Generating COG boxplots..."))
-      ####REMAKE THIS
-      #generate_taxa_boxplot(data.rff$val, grp.name=input$category, strata=NULL, rm.outlier=F, prev=input$func_prev / 100, minp=input$func_abund / 100,
-      #                      taxa.levels=c('COG_Category2'), ann='COG')
-      progress$inc(1/n, detail = paste("Generating COG barplots..."))
-      ####REMAKE THIS
-      #generate_taxa_barplot(data.rff$val, grp.name=input$category, strata=NULL, prev=input$func_prev / 100, minp=input$func_abund / 100,
-      #                      taxa.levels=c('COG_Category2'), ann='COG')
       progress$inc(1/n, detail = paste("Performing COG differential analysis..."))
       func.obj.rff$cog <- perform_differential_analysis(data.rff$val, 
                                                     grp.name=input$category, 
@@ -1246,8 +1239,13 @@ shinyApp(
       func_vis$cog <- visualize_differential_analysis(data.rff$val, func.obj.rff$cog, grp.name=input$category, cutoff=input$func_sig_level / 100, taxa.levels=c('COG_Category2'), 
                                       ann='COG', scale='none', mt.method=input$func_mult_test)
     })
+    
+    output$kegg_lvl_select = renderUI({
+      req(func_tbl)
+      selectInput("kegg_select", 'Sample name category (optional, only if using textbox below)', c(as.character(unique(func_tbl$kegg$Var1)), "Pick one"), "Pick one")
+    })
+    
     observeEvent(input$run_func,{
-      
       prop_kegg <- prop.table(data.rff$val$abund.list[['KEGG_Metabolism']],2)
       prop_kegg.m <- melt(prop_kegg[rev(order(rowMeans(prop_kegg))),])
       prop_kegg.m$factor1 <- data.rff$val$meta.dat[match(prop_kegg.m$Var2, rownames(data.rff$val$meta.dat)), input$category]
@@ -1256,37 +1254,31 @@ shinyApp(
       prop_cog.m <- melt(prop_cog[rev(order(rowMeans(prop_cog))),])
       prop_cog.m$factor1 <- data.rff$val$meta.dat[match(prop_cog.m$Var2, rownames(data.rff$val$meta.dat)), input$category]
       
+      func_tbl$kegg <- prop_kegg.m
+      func_tbl$cog <- prop_cog.m
+    })
+    
+    observeEvent(input$run_func,{
+    
       output$kegg_barplot_agg <- renderPlot({
           func_vis$kegg$barplot_aggregate
         }, height=function(){
               session$clientData$output_kegg_barplot_agg_width  
-        
         #ggplot(prop_kegg.m, aes(factor1, value, fill = Var1, key=Var1) ) +
         #       geom_bar(position="fill", stat="identity") +
         #       guides(fill=FALSE) + scale_fill_manual(values = rep(brewer.pal(12, "Set3"), length(unique(prop_kegg.m$Var1))/11))
       })
-      output$kegg_barplot_ind <- renderText({
-        #name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_Barplot_All_P_fdr_0.1_KEGG_.pdf"></iframe>')
-        #return(name)
-      })
-      output$kegg_boxplot_agg <- renderText({
-        func_vis$kegg$boxplot_aggregate
+      
+      output$kegg_boxplot_agg <- renderPlot({
+        func_vis$kegg$boxplot_aggregate + coord_flip()
         #ggplot(prop_kegg.m, aes(factor1, value, fill = Var1, key=Var1) ) +
         #  geom_box(stat="identity") +
         #  guides(fill=FALSE) + scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Set3"))(length(unique(prop_kegg.m$Var1))))
-      })
-      output$kegg_boxplot_ind <- renderText({
-        #name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_Boxplot_All_P_fdr_0.1_KEGG_.pdf"></iframe>')
-        #return(name)
       })
       output$kegg_effect <- renderPlot({
         func_vis$kegg$effect_size
         #name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_DifferentialAbundance_logPBarplot_fdr_0.1_KEGG_.pdf"></iframe>')
         #return(name)
-      })
-      output$kegg_test <- renderUI({
-        #out <- kegg_test_tab()
-        #div(HTML(as.character(out)),class="shiny-html-output")
       })
       output$cog_barplot_agg <- renderPlot({
         func_vis$cog$barplot_aggregate
@@ -1294,17 +1286,9 @@ shinyApp(
         #  geom_bar(stat="identity") +
         #  guides(fill=FALSE) + scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Set3"))(length(unique(prop_cog.m$Var1))))
       })
-      output$cog_barplot_ind <- renderText({
-        #name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_Barplot_All_P_fdr_0.1_COG_.pdf"></iframe>')
-        #return(name)
-      })
       output$cog_boxplot_agg <- renderPlot({
         func_vis$cog$boxplot_aggregate
         #name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_DifferentialAbundance_AbundanceBoxplot_none_fdr_0.1_COG_.pdf"></iframe>')
-        #return(name)
-      })
-      output$cog_boxplot_ind <- renderText({
-        #name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_Boxplot_All_P_fdr_0.1_COG_.pdf"></iframe>')
         #return(name)
       })
       output$cog_effect <- renderPlot({
@@ -1312,10 +1296,47 @@ shinyApp(
         #name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_DifferentialAbundance_logPBarplot_fdr_0.1_COG_.pdf"></iframe>')
         #return(name)
       })
+      
+      output$kegg_test <- renderUI({
+        #out <- kegg_test_tab()
+        #div(HTML(as.character(out)),class="shiny-html-output")
+      })
+
       output$cog_test <- renderUI({
         #out <- cog_test_tab()
         #div(HTML(as.character(out)),class="shiny-html-output")
       })
+    })
+    
+    observeEvent({func_tbl$kegg
+      input$kegg_select
+      },{
+        
+      output$kegg_barplot_ind <- renderPlot({
+        means <- filter(func_tbl$kegg, Var1==input$kegg_select) %>% group_by(factor1) %>% summarise(means=mean(value))
+        filter(func_tbl$kegg, Var1==input$kegg_select) %>% 
+          ggplot(aes(Var2, value, fill=as.factor(factor1))) + 
+          geom_bar(stat="identity") + 
+          facet_grid(~factor1, scales="free", space="free_x") + 
+          geom_hline(aes(yintercept=means), means)
+      })
+      
+      output$kegg_boxplot_ind <- renderText({
+        #name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_Boxplot_All_P_fdr_0.1_KEGG_.pdf"></iframe>')
+        #return(name)
+      })
+      
+      
+      output$cog_barplot_ind <- renderPlot({
+        #name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_Barplot_All_P_fdr_0.1_COG_.pdf"></iframe>')
+        #return(name)
+      })
+      
+      output$cog_boxplot_ind <- renderPlot({
+        #name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_Boxplot_All_P_fdr_0.1_COG_.pdf"></iframe>')
+        #return(name)
+      })
+      
     })
     
     kegg_test_tab <- function(){
