@@ -3700,13 +3700,13 @@ predictionRF <- function (data.obj,  resp.name, formula=NULL, taxa.level='Specie
     classification_error <- ggplot(melt(as.data.frame(performance2)), aes(x=variable, y=value)) + 
                               geom_boxplot(aes(fill=variable)) + 
                               guides(fill=FALSE) + 
-                              theme(axis.title.x=element_blank()) + 
+                              theme(text = element_text(size=20), axis.title.x=element_blank()) + 
                               ylab("Classification error")
   } else {
     classification_error <-ggplot(melt(as.data.frame(performance2)), aes(x=variable, y=value)) + 
                               geom_boxplot(aes(fill=variable)) + 
                               guides(fill=FALSE) + 
-                              theme(axis.title.x=element_blank()) +
+                              theme(text = element_text(size=20), axis.title.x=element_blank()) +
                               ylab("PMSE")
   }	
 

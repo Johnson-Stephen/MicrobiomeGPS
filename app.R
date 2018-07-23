@@ -313,7 +313,7 @@ shinyApp(
                   box(width=9,
                       tabBox(width=12,
                              tabPanel("Prediction evaluation",
-                                      plotOutput("classification_error")
+                                      plotOutput("classification_error", width=900, height=600)
                              ),
                              tabPanel("Bootstrap-validated ROC curves",
                                       imageOutput("bootstrap_roc_genus", width = 900, height = 600),
