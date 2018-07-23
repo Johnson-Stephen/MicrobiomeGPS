@@ -358,7 +358,7 @@ shinyApp(
                                           plotOutput("kegg_barplot_agg", height="auto")
                                         ),
                                         tabPanel("Individual",
-                                          uiOutput("kegg_lvl_select"),
+                                          uiOutput("kegg_bar_select"),
                                           plotOutput("kegg_barplot_ind")
                                         )
                                       )
@@ -371,11 +371,18 @@ shinyApp(
                                       plotOutput("kegg_effect")
                              ),
                              tabPanel("KEGG test results",
-                                      htmlOutput("kegg_test")
+                                      DT::dataTableOutput("kegg_test")
                              ),
                              tabPanel("COG barplots",
-                                      plotOutput("cog_barplot_agg"),
-                                      plotOutput("cog_barplot_ind")
+                                      tabBox(width=12,
+                                        tabPanel("Aggregate",
+                                          plotOutput("cog_barplot_agg")
+                                        ),
+                                        tabPanel("Individual",
+                                          uiOutput("cog_bar_select"),
+                                          plotOutput("cog_barplot_ind")
+                                        )
+                                      )
                              ),
                              tabPanel("COG boxplots",
                                       plotOutput("cog_boxplot_agg"),
@@ -385,7 +392,7 @@ shinyApp(
                                       plotOutput("cog_effect")
                              ),
                              tabPanel("COG test results",
-                                      htmlOutput("cog_test")
+                                      DT::dataTableOutput("cog_test")
                              )
                       )
                   )
@@ -1240,9 +1247,14 @@ shinyApp(
                                       ann='COG', scale='none', mt.method=input$func_mult_test)
     })
     
-    output$kegg_lvl_select = renderUI({
+    output$kegg_bar_select = renderUI({
       req(func_tbl)
       selectInput("kegg_select", 'Sample name category (optional, only if using textbox below)', c(as.character(unique(func_tbl$kegg$Var1)), "Pick one"), "Pick one")
+    })
+    
+    output$cog_bar_select = renderUI({
+      req(func_tbl)
+      selectInput("cog_select", 'Sample name category (optional, only if using textbox below)', c(as.character(unique(func_tbl$cog$Var1)), "Pick one"), "Pick one")
     })
     
     observeEvent(input$run_func,{
@@ -1271,44 +1283,30 @@ shinyApp(
       
       output$kegg_boxplot_agg <- renderPlot({
         func_vis$kegg$boxplot_aggregate + coord_flip()
-        #ggplot(prop_kegg.m, aes(factor1, value, fill = Var1, key=Var1) ) +
-        #  geom_box(stat="identity") +
-        #  guides(fill=FALSE) + scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Set3"))(length(unique(prop_kegg.m$Var1))))
       })
       output$kegg_effect <- renderPlot({
         func_vis$kegg$effect_size
-        #name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_DifferentialAbundance_logPBarplot_fdr_0.1_KEGG_.pdf"></iframe>')
-        #return(name)
       })
       output$cog_barplot_agg <- renderPlot({
         func_vis$cog$barplot_aggregate
-        #ggplot(prop_cog.m, aes(factor1, value, fill = Var1, key=Var1) ) +
-        #  geom_bar(stat="identity") +
-        #  guides(fill=FALSE) + scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Set3"))(length(unique(prop_cog.m$Var1))))
       })
       output$cog_boxplot_agg <- renderPlot({
         func_vis$cog$boxplot_aggregate
-        #name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_DifferentialAbundance_AbundanceBoxplot_none_fdr_0.1_COG_.pdf"></iframe>')
-        #return(name)
       })
       output$cog_effect <- renderPlot({
         func_vis$cog$effect_size
-        #name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_DifferentialAbundance_logPBarplot_fdr_0.1_COG_.pdf"></iframe>')
-        #return(name)
       })
-      
-      output$kegg_test <- renderUI({
-        #out <- kegg_test_tab()
-        #div(HTML(as.character(out)),class="shiny-html-output")
-      })
+      output$kegg_test <- DT::renderDataTable({
+        func.obj.rff$kegg$res.final[,c("Pvalue", "Qvalue", "logFoldChange", "PrevalChange")]
+      }, caption="Differential abundance analysis for all levels")
 
-      output$cog_test <- renderUI({
-        #out <- cog_test_tab()
-        #div(HTML(as.character(out)),class="shiny-html-output")
-      })
+      output$cog_test <- DT::renderDataTable({
+        func.obj.rff$cog$res.final[,c("Pvalue", "Qvalue", "logFoldChange", "PrevalChange")]
+      }, caption="Differential abundance analysis for all levels")
     })
     
-    observeEvent({func_tbl$kegg
+    observeEvent({
+      func_tbl$kegg
       input$kegg_select
       },{
         
@@ -1321,43 +1319,35 @@ shinyApp(
           geom_hline(aes(yintercept=means), means)
       })
       
-      output$kegg_boxplot_ind <- renderText({
-        #name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_Boxplot_All_P_fdr_0.1_KEGG_.pdf"></iframe>')
-        #return(name)
-      })
-      
-      
-      output$cog_barplot_ind <- renderPlot({
-        #name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_Barplot_All_P_fdr_0.1_COG_.pdf"></iframe>')
-        #return(name)
-      })
-      
-      output$cog_boxplot_ind <- renderPlot({
-        #name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_Boxplot_All_P_fdr_0.1_COG_.pdf"></iframe>')
-        #return(name)
+      output$kegg_boxplot_ind <- renderPlot({
+        filter(func_tbl$kegg, Var1==input$kegg_select) %>% 
+          ggplot(aes(Var2, value, fill=as.factor(factor1))) + 
+          geom_boxplot(stat="identity") + 
+          facet_grid(~factor1, scales="free", space="free_x") 
       })
       
     })
     
-    kegg_test_tab <- function(){
-      mytab <- read.csv("Taxa_DifferentialAbundanceAnalysis_AllLevels_fdr_0.1_KEGG_perm.csv", head=TRUE, sep=",") 
-      names(mytab)[1] <- "Taxa"
-      table <- print(xtable(mytab[,c(1,2,3,4,5,8)], caption="Differential abundance analysis for all levels"),
-                     type="html", 
-                     html.table.attributes='class="data table table-bordered table-condensed"', 
-                     caption.placement="top")
-      return(table)
-    }
-    
-    cog_test_tab <- function(){
-      mytab <- read.csv("Taxa_DifferentialAbundanceAnalysis_AllLevels_fdr_0.1_COG_perm.csv", head=TRUE, sep=",") 
-      names(mytab)[1] <- "Taxa"
-      table <- print(xtable(mytab[,c(1,2,3,4,5,8)], caption="Differential abundance analysis for all levels"),
-                     type="html", 
-                     html.table.attributes='class="data table table-bordered table-condensed"', 
-                     caption.placement="top")
-      return(table)
-    }
+    observeEvent({
+     func_tbl$cog
+      input$cog_select
+    },{
+      output$cog_barplot_ind <- renderPlot({
+        means <- filter(func_tbl$cog, Var1==input$cog_select) %>% group_by(factor1) %>% summarise(means=mean(value))
+        filter(func_tbl$cog, Var1==input$cog_select) %>% 
+          ggplot(aes(Var2, value, fill=as.factor(factor1))) + 
+          geom_bar(stat="identity") + 
+          facet_grid(~factor1, scales="free", space="free_x") + 
+          geom_hline(aes(yintercept=means), means)
+      })
+      
+      output$cog_boxplot_ind <- renderPlot({
+        filter(func_tbl$cog, Var1==input$cog_select) %>% 
+          ggplot(aes(Var2, value, fill=as.factor(factor1))) + 
+          geom_boxplot(stat="identity") + 
+          facet_grid(~factor1, scales="free", space="free_x") 
+      })
+    })
     
     output$subtype_text <- renderText({
       submit_subtype()
