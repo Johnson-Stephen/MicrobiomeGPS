@@ -313,7 +313,7 @@ shinyApp(
                   box(width=9,
                       tabBox(width=12,
                              tabPanel("Prediction evaluation",
-                                      imageOutput("classification_error", width=900, height=600)
+                                      plotOutput("classification_error")
                              ),
                              tabPanel("Bootstrap-validated ROC curves",
                                       imageOutput("bootstrap_roc_genus", width = 900, height = 600),
@@ -486,6 +486,7 @@ shinyApp(
     beta <- reactiveValues(ord=NULL,clust=NULL,barplot=NULL,boxplot=NULL,permanova=NULL,mirkat=NULL,disper=NULL)
     
     diff_vis <- reactiveValues(val=NULL)
+    pred_results <- reactiveValues(val=NULL)
     
     samples_removed_vector <- reactiveValues(val=NULL)
     samples_kept_vector <- reactiveValues(val=NULL)
@@ -1155,16 +1156,14 @@ shinyApp(
       progress <- shiny::Progress$new()
       on.exit(progress$close())
       progress$set(message = "Running prediction modeling", value = 1/2)
-      predictionRF(data$val,  resp.name=input$category, taxa.level='Genus', boruta.leve=input$boruta_level, B=input$bootstrap_num, prev=input$pred_prev / 100, minp=input$pred_abund / 100)
+      pred_results$val <- predictionRF(data$val,  resp.name=input$category, taxa.level='Genus', boruta.leve=input$boruta_level, B=input$bootstrap_num, prev=input$pred_prev / 100, minp=input$pred_abund / 100)
+      
     })
     
     observeEvent(input$run_pred,{
-      output$classification_error <- renderImage({
-        input$run_pred
-        list(src = "Taxa_Random_forest_misclassification_barplot_Genus_.png",
-             contentType = 'image/png',
-             alt = "Misclassification barplot")
-      }, deleteFile = FALSE)
+      output$classification_error <- renderPlot({
+        pred_results$val$classification_error
+      })
       
       output$bootstrap_roc_genus <- renderImage({
         input$run_pred
@@ -1357,9 +1356,7 @@ shinyApp(
     submit_subtype <- eventReactive(input$run_subtype,{
       progress <- shiny::Progress$new()
       on.exit(progress$close())
-      progress$set(message = "Begin subtype analyis analysis. Beginning random forest predictions...", value = 0)
       n <- 2
-      predictionRF(data$val,  resp.name=input$category, taxa.level='Genus', boruta.leve=input$boruta_level, B=input$bootstrap_num, prev=input$prev / 100, minp=input$abund / 100)
       progress$inc(1/n, detail = paste("Performing cluster analysis..."))
       perform_cluster_analysis(data$val, dist$val, dist.name='UniFrac', method='pam', stat='gap', 
                                grp.name=input$category, adj.name=NULL) 
