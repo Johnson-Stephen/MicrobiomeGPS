@@ -316,8 +316,7 @@ shinyApp(
                                       plotOutput("classification_error", width=900, height=600)
                              ),
                              tabPanel("Bootstrap-validated ROC curves",
-                                      imageOutput("bootstrap_roc_genus", width = 900, height = 600),
-                                      imageOutput("bootstrap_roc_species", width = 900, height = 600)
+                                      plotOutput("bootstrap_roc", width = 900, height = 600)
                              ),
                              tabPanel("Boruta selected features",
                                       htmlOutput("boruta_features")
@@ -1165,19 +1164,9 @@ shinyApp(
         pred_results$val$classification_error
       })
       
-      output$bootstrap_roc_genus <- renderImage({
-        input$run_pred
-        list(src = "Taxa_Random_forest_ROC_Genus_.png",
-             contentType = 'image/png',
-             alt = "Bootstrap validated ROC curve at Genus level")
-      }, deleteFile = FALSE)
-      
-      output$boostrap_roc_species <- renderImage({
-        input$run_pred
-        list(src = "Taxa_Random_forest_ROC_Species_.png",
-             contentType = 'image/png',
-             alt = "Bootstrap validated ROC curve at Species level")
-      }, deleteFile = FALSE)
+      output$bootstrap_roc <- renderPlot({
+        pred_results$val$rocs[[1]]
+      })
       
       output$boruta_features <- renderText({
         name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_Random_forest_Boruta_Feature_Selection_Genus_.pdf"></iframe>')

@@ -3719,7 +3719,7 @@ predictionRF <- function (data.obj,  resp.name, formula=NULL, taxa.level='Specie
       y
     }
     )
-    roc <- createROC(roc.list, lab.list, pos.lab=levels(response)[1], file.name=NULL)
+    rocs <- createROC(roc.list, lab.list, pos.lab=levels(response)[1], file.name=NULL)
   }
   
   if (is.factor(response)) {
@@ -3874,7 +3874,7 @@ predictionRF <- function (data.obj,  resp.name, formula=NULL, taxa.level='Specie
       }
     }
   }
-  return(list(fridman=fridman, classification_error = classification_error, roc=roc, mean_dec_acc = mean_dec_acc,
+  return(list(fridman=fridman, classification_error = classification_error, rocs=rocs, mean_dec_acc = mean_dec_acc,
               mean_dec_gini = mean_dec_gini, inc_mse = inc_mse, inc_node_purity = inc_node_purity, feat_select_tab = feat_select_tab, taxa.names=taxa.names))
 }
 
@@ -3883,7 +3883,7 @@ createROC <- function (pv.list, lab.list, pos.lab='1', file.name='ROC.pdf', widt
   n <- length(pv.list)
   aucs <- numeric(n)
   names(aucs) <- names(pv.list)
-  roc <- NULL
+  rocs <- list()
   #	cols <- scales::hue_pal()(n)
   cols <- rep(c('red', 'blue', 'orange', 'cyan', 'purple'), ceiling(n/5))[1:n]
   ltys <- rep(c(1, 2), ceiling(n/2))[1:n]
@@ -3900,7 +3900,7 @@ createROC <- function (pv.list, lab.list, pos.lab='1', file.name='ROC.pdf', widt
     perf <- performance(pred, "tpr", "fpr")
     aucs[i] <- mean(unlist(performance(pred, 'auc')@y.values))
     df <- data.frame(x=unlist(perf@x.values), y=unlist(perf@y.values))
-    roc <- ggplot(df, aes(x,y)) + 
+    rocs[[i]] <- ggplot(df, aes(x,y)) + 
       geom_line() + 
       geom_abline(intercept=0, slope=1, linetype="dashed") + 
       xlab("Average false positive rate") + 
@@ -3911,7 +3911,7 @@ createROC <- function (pv.list, lab.list, pos.lab='1', file.name='ROC.pdf', widt
   if(!is.null(file.name)){
     dev.off()
   }
-  return(roc)
+  return(rocs)
 }
 
 plot.Boruta2 <- function (x, colCode = c("green", "yellow", "red", "blue"), sort = TRUE,
