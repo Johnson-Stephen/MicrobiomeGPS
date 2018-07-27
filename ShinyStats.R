@@ -3747,20 +3747,31 @@ predictionRF <- function (data.obj,  resp.name, formula=NULL, taxa.level='Specie
   obj.Boruta <- Boruta(padj, response, doTrace = 2, num.threads=15)	
   feat_select_tab <- obj.Boruta$finalDecision
   
-  pdf(paste0("Taxa_Random_forest_Boruta_Feature_Selection_", taxa.level, '_', ann,  ".pdf"), height=6, width=10)
-  par(mar=par('mar') + c(3, 0, 0, 0))
-  plot(obj.Boruta, main = "Feature selection by Boruta", ylab="Importance z-score", lwd = 0.5, las = 3, xlab = "",
-       cex=1 / (ncol(prop)/50), cex.axis=0.25*200/ncol(prop), yaxt='n')
-  axis(2, cex.axis=1)
-  dev.off()
+  #pdf(paste0("Taxa_Random_forest_Boruta_Feature_Selection_", taxa.level, '_', ann,  ".pdf"), height=6, width=10)
+  #par(mar=par('mar') + c(3, 0, 0, 0))
+  
+  #feature_selection <- ggplot(melt(obj.Boruta$ImpHistory)[melt(obj.Boruta$ImpHistory)$value != "-Inf",], 
+  #                            aes(x=forcats::fct_reorder(Var2, value, fun = median, order=TRUE), y=value)) + 
+  #                            geom_boxplot(fill=col) + 
+  #                            theme(axis.text.x=element_text(angle=90, hjust=1))
+  
+  feature_selection <- plot.Boruta2(obj.Boruta, main = "Feature selection by Boruta", lwd = 0.5, las = 3, ylab="Importance z-score", xlab = "", cex.axis=1, yaxt='n')
+  
+  #plot(obj.Boruta, main = "Feature selection by Boruta", ylab="Importance z-score", lwd = 0.5, las = 3, xlab = "",
+  #     cex=1 / (ncol(prop)/50), cex.axis=0.25*200/ncol(prop), yaxt='n')
+  #axis(2, cex.axis=1)
+  #dev.off()
   #sink()
   
-  pdf(paste0("Taxa_Random_forest_Boruta_Feature_Selection_Significant_Only_", taxa.level, '_', ann, ".pdf"), height=6, width=6)
-  par(mar=par('mar') + c(3, 0, 0, 0))
-  otu.ids <- plot.Boruta2(obj.Boruta, main = "Feature selection by Boruta", lwd = 0.5, las = 3, 
-                          ylab="Importance z-score", xlab = "", cex.axis=1, yaxt='n')
-  axis(2, cex.axis=1)
-  dev.off()
+  ###WORK ON THIS
+  ####ggplot(melt(obj.Boruta$ImpHistory)[melt(obj.Boruta$ImpHistory)$value != "-Inf",], aes(x=forcats::fct_reorder(Var2, value, fun = median, order=TRUE), y=value)) + geom_boxplot()
+  
+ # pdf(paste0("Taxa_Random_forest_Boruta_Feature_Selection_Significant_Only_", taxa.level, '_', ann, ".pdf"), height=6, width=6)
+#  par(mar=par('mar') + c(3, 0, 0, 0))
+  #otu.ids <- plot.Boruta2(obj.Boruta, main = "Feature selection by Boruta", lwd = 0.5, las = 3, 
+  #                        ylab="Importance z-score", xlab = "", cex.axis=1, yaxt='n')
+#  axis(2, cex.axis=1)
+#  dev.off()
   
   if ('Confirmed' %in% boruta.level) {
     taxa.names <- original.names[names(obj.Boruta$finalDecision)[obj.Boruta$finalDecision %in% c('Confirmed')]] 
@@ -3875,7 +3886,8 @@ predictionRF <- function (data.obj,  resp.name, formula=NULL, taxa.level='Specie
     }
   }
   return(list(fridman=fridman, classification_error = classification_error, rocs=rocs, mean_dec_acc = mean_dec_acc,
-              mean_dec_gini = mean_dec_gini, inc_mse = inc_mse, inc_node_purity = inc_node_purity, feat_select_tab = feat_select_tab, taxa.names=taxa.names))
+              mean_dec_gini = mean_dec_gini, inc_mse = inc_mse, inc_node_purity = inc_node_purity, 
+              feat_select_tab = feat_select_tab, taxa.names=taxa.names, feature_selection=feature_selection))
 }
 
 createROC <- function (pv.list, lab.list, pos.lab='1', file.name='ROC.pdf', width = 6, height = 6) {
@@ -3938,9 +3950,12 @@ plot.Boruta2 <- function (x, colCode = c("green", "yellow", "red", "blue"), sort
     ind <- match(ids, names(lz))
   }
   
-  boxplot(lz[ind], xlab = xlab, ylab = ylab, col = col[ind], ...)
-  invisible(x)
-  names(lz[ind])
+  #boxplot(lz[ind], xlab = xlab, ylab = ylab, col = col[ind], ...)
+  #invisible(x)
+  #names(lz[ind])
+  
+  #ggplot(melt(obj.Boruta$ImpHistory)[melt(obj.Boruta$ImpHistory)$value != "-Inf",], aes(x=forcats::fct_reorder(Var2, value, fun = median, order=TRUE), y=value)) + geom_boxplot()
+  ggplot(melt(x$ImpHistory)[melt(x$ImpHistory)$value != "-Inf",], aes(x=forcats::fct_reorder(Var2, value, fun = median, order=TRUE), y=value)) + geom_boxplot(fill=col) + theme(axis.text.x=element_text(angle=90, hjust=1))
 }
 
 # Rev: 2017_05_19: new formula for width

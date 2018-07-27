@@ -319,7 +319,7 @@ shinyApp(
                                       plotOutput("bootstrap_roc", width = 900, height = 600)
                              ),
                              tabPanel("Boruta selected features",
-                                      htmlOutput("boruta_features")
+                                      plotOutput("boruta_features")
                              ),
                              tabPanel("Boruta barplots",
                                       htmlOutput("boruta_barplots_agg"),
@@ -1168,9 +1168,8 @@ shinyApp(
         pred_results$val$rocs[[1]]
       })
       
-      output$boruta_features <- renderText({
-        name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_Random_forest_Boruta_Feature_Selection_Genus_.pdf"></iframe>')
-        return(name)
+      output$boruta_features <- renderPlot({
+       pred_results$val$feature_selection
       })
       
       output$boruta_barplots_agg <- renderText({
