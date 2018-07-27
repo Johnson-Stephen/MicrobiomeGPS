@@ -322,11 +322,19 @@ shinyApp(
                                       plotOutput("boruta_features")
                              ),
                              tabPanel("Boruta barplots",
-                                      htmlOutput("boruta_barplots_agg"),
-                                      htmlOutput("boruta_barplots_ind")
+                                      tabBox(width=12,
+                                        tabPanel("Aggregate",
+                                          plotOutput("boruta_barplots_agg")
+                                        ),
+                                        tabPanel("Individual",
+                                          uiOutput("boruta_barplot_select"),
+                                          plotOutput("boruta_barplots_ind")
+                                        )
+                                      )
                              ),
                              tabPanel("Boruta boxplots",
-                                      htmlOutput("boruta_boxplots")
+                                      uiOutput("boruta_boxplot_select"),
+                                      plotOutput("boruta_boxplots")
                              )
                       )
                   )
@@ -1169,29 +1177,55 @@ shinyApp(
       })
       
       output$boruta_features <- renderPlot({
-       pred_results$val$feature_selection
+        pred_results$val$feature_selection
       })
       
-      output$boruta_barplots_agg <- renderText({
-        name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_Barplot_Aggregate_Genus_sqrt_BorutaFeatures_Tentative__.pdf"></iframe>')
-        return(name)
+      output$boruta_barplot_select <- renderUI({
+        selectInput("boruta_barplot_select", 'Select boruta feature', c(as.character(unique(pred_results$val$taxa.names)), "Pick one"), "Pick one")
+        #name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_Barplot_Aggregate_Genus_sqrt_BorutaFeatures_Tentative__.pdf"></iframe>')
+        #return(name)
       })
       
-      output$boruta_barplots_ind <- renderText({
-        name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_Barplot_Genus_P_BorutaFeatures_Tentative__.pdf"></iframe>')
-        return(name)
+      output$boruta_boxplot_select <- renderUI({
+        selectInput("boruta_boxplot_select", 'Select boruta feature', c(as.character(unique(pred_results$val$taxa.names)), "Pick one"), "Pick one")
+        #name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_Barplot_Aggregate_Genus_sqrt_BorutaFeatures_Tentative__.pdf"></iframe>')
+        #return(name)
       })
       
-      output$boruta_boxplots <- renderText({
-        name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_Boxplot_Genus_P_BorutaFeatures_Tentative__.pdf"></iframe>')
-        return(name)
+      output$boruta_barplots_agg <- renderPlot({
+        pred_results$val$boruta_barplots_agg[[1]]
       })
       
-      output$boruta_roc <- renderText({
-        name <- paste0('<iframe style="height:600px; width:900px" src="plots/BorutaFeatures_Tentative_ROC_Genus_0.632+.pdf"></iframe>')
-        return(name)
+      #output$boruta_boxplots <- renderPlot({
+      #  pred_results$val$boruta_boxplots
+        #name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_Boxplot_Genus_P_BorutaFeatures_Tentative__.pdf"></iframe>')
+        #return(name)
+      #})
+      
+      output$boruta_roc <- renderPlot({
+        pred_results$val$boruta_roc
+        #name <- paste0('<iframe style="height:600px; width:900px" src="plots/BorutaFeatures_Tentative_ROC_Genus_0.632+.pdf"></iframe>')
+        #return(name)
       })
     })
+    
+    observeEvent({
+      input$run_pred
+      input$boruta_barplot_select},
+      {
+        output$boruta_barplots_ind <- renderPlot({
+          generate_taxa_barplot(data$val, grp.name=input$category, taxa.levels='Genus', taxa.name=input$boruta_barplot_select)
+        })
+    })
+    
+    observeEvent({
+      input$run_pred
+      input$boruta_boxplot_select},
+      {
+        output$boruta_boxplots <- renderPlot({
+          generate_taxa_boxplot(data$val, grp.name=input$category, taxa.levels='Genus', taxa.name=input$boruta_boxplot_select)
+        })
+      })
     
     output$func_text <- renderText({
       submit_func()

@@ -3844,7 +3844,7 @@ predictionRF <- function (data.obj,  resp.name, formula=NULL, taxa.level='Specie
         generate_taxa_boxplot(data.obj, grp.name=resp.name, taxa.levels=taxa.level, taxa.name=taxa.names, scale='binary', ann=paste0('BorutaFeatures_Tentative_', ann))
         generate_taxa_barplot(data.obj, grp.name=resp.name, taxa.levels=taxa.level, taxa.name=taxa.names, ann=paste0('BorutaFeatures_Tentative_', ann))
         if (length(taxa.names) > 1) {
-          generate_taxa_barplot_aggregate(data.obj, grp.name=resp.name, taxa.levels=taxa.level, taxa.name=taxa.names, ann=paste0('BorutaFeatures_Tentative_', ann))
+          boruta_barplots_agg <- generate_taxa_barplot_aggregate(data.obj, grp.name=resp.name, taxa.levels=taxa.level, taxa.name=taxa.names, ann=paste0('BorutaFeatures_Tentative_', ann))
           generate_taxa_boxplot_aggregate(data.obj, grp.name=resp.name, taxa.levels=taxa.level, taxa.name=taxa.names, ann=paste0('BorutaFeatures_Tentative_', ann))
           build.decision.tree(data.obj,  resp.name=resp.name, aug.var=aug.var, taxa.level=taxa.level, binary=binary, taxa=taxa.names, ann=paste0('BorutaFeatures_Tentative_', ann)) 
         }
@@ -3887,7 +3887,8 @@ predictionRF <- function (data.obj,  resp.name, formula=NULL, taxa.level='Specie
   }
   return(list(fridman=fridman, classification_error = classification_error, rocs=rocs, mean_dec_acc = mean_dec_acc,
               mean_dec_gini = mean_dec_gini, inc_mse = inc_mse, inc_node_purity = inc_node_purity, 
-              feat_select_tab = feat_select_tab, taxa.names=taxa.names, feature_selection=feature_selection))
+              feat_select_tab = feat_select_tab, taxa.names=taxa.names, feature_selection=feature_selection,
+              boruta_barplots_agg = boruta_barplots_agg, taxa.names=taxa.names))
 }
 
 createROC <- function (pv.list, lab.list, pos.lab='1', file.name='ROC.pdf', width = 6, height = 6) {
