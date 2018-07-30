@@ -1122,6 +1122,159 @@ generate_alpha_diversity <- function (data.obj,  rarefy=TRUE, depth=NULL, iter.n
   return(x)
 }
 
+# Rev: 2017_02_13 Individual label
+# Rev: 2017_05_06 Add p value 
+generate_ordination <- function (data.obj, dist.obj, dist.names=c('UniFrac', 'GUniFrac', 'WUniFrac', 'BC'), 
+                                 grp.name, adj.name=NULL, emp.lev=NULL, indiv.lab=FALSE, indiv.lab.cex=0.5, is.lightcolor=TRUE,
+                                 strata=NULL,  pc.separate, pca.method='cmd', ann=NULL, sub=NULL,
+                                 clab=1.0, cex.pt=1.25, ellipse=T, cstar= 1, wid=5, hei=5, pdf=TRUE, is.pvalue=FALSE, ...) {
+  # Implment strata
+  # To be completed, add continuous case
+  strata0 <- strata
+  
+  if (pdf) {
+    if (is.null(ann)) {
+      pdf(paste0('Beta_diversity_ordination_', pca.method, '_', grp.name, '.pdf'), width=wid, height=hei)
+    } else {
+      pdf(paste0('Beta_diversity_ordination_', pca.method, '_', ann, '.pdf'), width=wid, height=hei)
+    }
+  }
+  
+  df <- data.obj$meta.dat
+  grp <- factor(df[, grp.name])
+  
+  if (!is.null(emp.lev)) {
+    grp <- factor(grp, levels=c(setdiff(levels(grp), emp.lev), emp.lev))
+  }
+  
+  if (!is.null(strata)) {
+    strata <- factor(df[, strata])
+  } else {
+    strata <- factor(grp)
+  }
+  
+  # To be revised
+  darkcols <- hue_pal(l=40)(nlevels(grp))
+  if (is.lightcolor) {
+    lightcols <- hue_pal(c=45, l=80)(nlevels(grp))
+  } else {
+    lightcols <- darkcols
+  }
+  
+  pchs <- rep(c(21, 22, 23, 24, 25), ceiling(nlevels(strata) / 5))[1:nlevels(strata)]
+  
+  for (dist.name in dist.names) {
+    dist.temp <- dist.obj[[dist.name]]
+    if (!is.null(adj.name)) {
+      adj <- as.data.frame(df[, adj.name])
+      obj <- cmdscale(as.dist(dist.temp), k=ncol(dist.temp)-1)
+      dat2 <- apply(obj, 2, function(x) resid(lm(x ~ ., data=adj)))
+      dist.temp <- dist(dat2)
+    } 
+    if (pca.method == 'cmd') {
+      obj <- cmdscale(as.dist(dist.temp), k=2, eig=T)
+      pve <- round(obj$eig[1:2]/sum(abs(obj$eig))*100, 1)
+      y <- cbind(obj$points[, 1], obj$points[, 2])
+      
+      xlab <- paste0('PC1(', pve[1], '%)')
+      ylab <- paste0('PC2(', pve[2], '%)')
+    } 
+    
+    if (pca.method == 'nmds') {
+      obj <- metaMDS(as.dist(dist.temp), k=2)
+      y <- cbind(obj$points[, 1], obj$points[, 2])
+      xlab <- 'NMDS1'
+      ylab <- 'NMDS2'
+    } 
+    
+    if (pca.method == 'pls') {
+      require(mixOmics)
+      # Test
+      obj <- cmdscale(as.dist(dist.temp), k=ncol(dist.temp)-1)
+      obj <- plsda(obj, grp, ncomp=2)
+      y <- cbind(obj$variates$X[, 1], obj$variates$X[, 2])
+      xlab <- 'PLS1'
+      ylab <- 'PLS2'
+    }
+    
+    if (is.pvalue == TRUE & nlevels(factor(grp)) > 1) {
+      pvalue <- paste0('(P=', adonis(as.dist(dist.temp) ~ grp)$aov.tab[1, 6], ')')
+    } else {
+      pvalue <- ''
+    }
+    
+    colnames(y) <- c("PC1", "PC2")		
+    xlim <- c(-max(range(abs(y[, 1]))) * 1.25, max(range(abs(y[, 1]))) * 1.25)
+    ylim <- c(-max(range(abs(y[, 2]))) * 1.25, max(range(abs(y[, 2]))) * 1.25)
+    plot(y[, 1], y[, 2], type='n', xlim=xlim, ylim=ylim, 
+         xlab=xlab, ylab=ylab)
+    #		points(y[, 1], y[, 2], bg='yellow', col=darkcols[grp], 
+    #				type='p', pch = pchs[grp], cex=cex.pt)
+    col1 <- lightcols[1:nlevels(grp)]
+    col2 <- darkcols[1:nlevels(grp)]
+    col3 <- darkcols[grp]
+    if (!is.null(emp.lev)) {
+      
+      col1 <- col2
+      col1[which(levels(grp) != emp.lev)] <- rgb(0.5, 0.5, 0.5, 0.5)
+      col1[which(levels(grp) == emp.lev)] <- rgb(1.0, 0, 0, 1.0)
+      col2[which(levels(grp) != emp.lev)] <- rgb(0.5, 0.5, 0.5, 0.5)
+      col2[which(levels(grp) == emp.lev)] <- rgb(1.0, 0, 0, 1.0)
+      col3[grp !=  emp.lev] <- rgb(0.5, 0.5, 0.5, 0.5)
+      col3[grp ==  emp.lev] <- rgb(1.0, 0, 0, 1.0)
+      
+    }
+    if (ellipse == T) {
+      s.class(y, 
+              fac = grp,
+              cstar = cstar,
+              clab = 0,
+              cpoint = 0,
+              axesell = F,
+              col = col1,
+              grid = TRUE,
+              add.plot=T,
+              ...
+      )
+    }
+    
+    points(y[, 1], y[, 2], bg=col3, col='black',
+           type='p', pch = pchs[strata], cex=cex.pt)
+    if (indiv.lab) {
+      if (is.null(emp.lev)) {
+        lab.temp <- rownames(dist.temp)
+        text(y[, 1], y[, 2], labels=lab.temp, cex=indiv.lab.cex, col=rgb(1, 0, 0, 0.75))
+      } else {
+        lab.temp <- rownames(dist.temp)
+        lab.temp[grp !=  emp.lev] <- ''
+        text(y[, 1], y[, 2], labels=lab.temp, cex=indiv.lab.cex, col=rgb(1, 0, 0, 0.75))
+      }
+      
+    }
+    s.class(y, 
+            fac = grp,
+            cstar =0,
+            cellipse = 0,
+            clab = clab,
+            cpoint = 0,
+            axesell = F,
+            col = col2,
+            grid = TRUE,
+            add.plot=T
+    )
+    if (!is.null(strata0)) {
+      legend('topright', legend=(levels(strata)), pch=pchs[1:nlevels(strata)])	
+    }
+    
+    title(main=paste(dist.name, "distance"), sub=paste0(sub, pvalue))
+    #		text(-0.25, 0.3, "PERMANOVA p=0.016")
+  }
+  
+  if (pdf) {
+    dev.off()
+  }
+}
+
 #Note: this function is NOT general purpose like generate_ordination()
 generate_ordination2 <- function (data.obj, dist.obj, dist.names=c('UniFrac', 'GUniFrac', 'WUniFrac', 'BC'), 
                                   grp.name, adj.name=NULL, emp.lev=NULL, strata=NULL, pc.separate, pca.method='cmd', ann=NULL, sub=NULL,
@@ -4067,3 +4220,146 @@ build.decision.tree <- function(data.obj,  resp.name, taxa.level='Species', bina
     }
   )	
 }
+
+k.nonoverlap.se <- function (tab, SE.factor=1) {
+  max.v <- which.max(tab[, 'gap']) 
+  
+  for (i in (max.v-1):1) {
+    if (tab[i, 'gap'] + SE.factor * tab[i, 'SE.sim'] < tab[i+1, 'gap'] - SE.factor * tab[i+1, 'SE.sim']) {
+      break
+    } 
+  }
+  
+  return(i+1)
+}
+
+
+
+perform_cluster_analysis <- function (data.obj, dist.obj, dist.name=c('UniFrac'), k.best=NULL, method='pam', stat='gap', 
+                                      grp.name=NULL, adj.name=NULL, subject=NULL, ann='', seed=1234) {
+  
+  df <- data.obj$meta.dat
+  if (!is.null(grp.name)) {
+    grp <- df[, grp.name]
+  }
+  if (!is.null(adj.name)) {
+    adj <- df[, adj.name]
+  }
+  cat(dist.name, ' distance ...\n')
+  mat <- dist.obj[[dist.name]]
+  
+  if (is.null(k.best)) {
+    pc.obj <- cmdscale(as.dist(mat), k=ncol(mat) - 1, eig=T)
+    eig <- pc.obj$eig
+    eig <- eig[eig > 0]
+    pvar <- eig / sum(eig)
+    pc <- pc.obj$points
+    
+    cat('Assess cluster number by gap statistics ...\n')
+    
+    set.seed(seed)
+    gs <-  gapstat_ord(pc, axes=1:ncol(pc), verbose=FALSE)
+    gap_statistic <- plot_clusgap(gs)
+    #ggsave(paste0('cluster_assess_gap_statistic_', dist.name, ann, '.pdf') , width=6, height=6)
+    
+    
+    #		print(gs, method="Tibs2001SEmax")
+    #		print(gs, method="firstSEmax")
+    
+    tab <- gs$Tab
+    #write.csv(tab, paste0('gap_stat_', dist.name, '.csv'))
+    
+    k.best.gap <- k.nonoverlap.se(tab)
+    
+    cat('Gap statistic finds ', k.best.gap, ' clusters.\n')
+    
+    
+    cat('Assess cluster number by average silhouette width ...\n')
+    asw <- numeric(20)
+    for (k in 2:20){
+      asw[k] <- pam(as.dist(mat), k)$silinfo$avg.width
+    }
+    
+    k.best.asw <- which.max(asw)
+    cat("silhouette-optimal number of clusters:", k.best.asw, "\n")
+    pdf(paste0('cluster_assess_asw_statistic_', dist.name, ann, '.pdf'), width=6, height=6)
+    plot(1:20, asw, type= "h", main = "pam() clustering assessment",
+         xlab= "k (# clusters)", ylab = "average silhouette width")
+    axis(1, k.best.asw, paste("best",k.best.asw, sep="\n"), col = "red", col.axis = "red")
+    dev.off()
+    
+    cat('ASW statistic finds ', k.best.asw, ' clusters.\n')
+    
+    if (stat == 'gap') {
+      k.best <- k.best.gap
+    } else {
+      if (stat == 'asw') {
+        k.best <- k.best.asw
+      }
+    }
+    
+  }
+  
+  if (k.best == 1) {
+    cat('No robust cluster structure found!\n')
+  } else {
+    pam.obj <- pam(as.dist(mat), k=k.best)
+    pam.class <- factor(pam.obj$clustering)
+    write.csv(pam.class, paste0('Cluster.membership', dist.name, '.csv'))
+    
+    df$Cluster <- pam.class
+    data.obj$meta.dat <- df
+    if (is.null(grp.name)) {
+      generate_ordination(data.obj, dist.obj, dist.name, grp.name='Cluster', ann=paste0('Cluster', dist.name, ann))
+    } else {
+      generate_ordination(data.obj, dist.obj, dist.name, grp.name='Cluster', strata=grp.name, ann=paste0('Cluster', dist.name, ann))
+    }
+    
+    # Define cluster characteristics
+    diff.obj <- perform_differential_analysis(data.obj, grp.name='Cluster', 
+                                              taxa.levels=c('Genus'),
+                                              method='kruskal', mt.method='fdr', 
+                                              cutoff=0.01, prev=0.1, minp=0.002, ann='Cluster')
+    
+    visualize_differential_analysis(data.obj, diff.obj, grp.name='Cluster', taxa.levels=c('Genus'), indivplot=FALSE,
+                                    mt.method='fdr', cutoff=0.01, ann='Cluster')
+    
+    try(
+      if (!is.null(grp.name)) {
+        if (is.null(adj.name)) {
+          form <- as.formula(paste('yy ~', grp.name))
+        } else {
+          form <- as.formula(paste('yy ~', paste(adj.name, collapse='+'), '+', grp.name))		
+        }
+        # Enrichment analysis - logistic regression - 1 vs other
+        cat('Testing for association with the clusters - 1 vs other ...\n')
+        sink(paste0('Cluster_association_test', dist.name, ann, '.txt'))
+        if (is.null(subject)) {
+          cat('Generalized linear model (logistic regression) is performed.\n')
+          
+          for (clus in levels(df$Cluster)[1:(nlevels(df$Cluster))]) {	
+            cat('Test for enrichment in cluster', clus, '\n')
+            y <- rep(0, length(df$Cluster)) 
+            y[df$Cluster == clus] <- 1
+            df$yy <- y
+            prmatrix(summary(glm(form, data=df, family=binomial))$coefficients)	
+          }
+        } else {
+          cat('Generalized linear mixed effects model (logistic regression) is performed.\n')
+          for (clus in levels(df$Cluster)[1:(nlevels(df$Cluster))]) {
+            cat('Test for enrichment in cluster', clus, '\n')
+            y <- rep(0, length(df$Cluster)) 
+            y[df$Cluster == clus] <- 1
+            df$yy <- y
+            prmatrix(summary(glmmPQL(form, data=df, random = as.formula(paste0('~ 1|', subject)), family=binomial, verbose=F))$tTable)
+            
+          }
+        }
+        sink()
+      }
+    )
+    
+  }
+  return(list(gap_statistic=gap_statistic, tab=tab))
+}
+

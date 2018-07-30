@@ -418,7 +418,7 @@ shinyApp(
                   box(width=9,
                       tabBox(width=12,
                              tabPanel("Gap statistic",
-                                      htmlOutput("gap_statistic")
+                                      plotOutput("gap_statistic")
                              ),
                              tabPanel("Avg. silhouette width",
                                       htmlOutput("silhouette_width")
@@ -494,6 +494,7 @@ shinyApp(
     
     diff_vis <- reactiveValues(val=NULL)
     pred_results <- reactiveValues(val=NULL)
+    subtype_results <- reactiveValues(val=NULL)
     
     samples_removed_vector <- reactiveValues(val=NULL)
     samples_kept_vector <- reactiveValues(val=NULL)
@@ -1380,14 +1381,13 @@ shinyApp(
       on.exit(progress$close())
       n <- 2
       progress$inc(1/n, detail = paste("Performing cluster analysis..."))
-      perform_cluster_analysis(data$val, dist$val, dist.name='UniFrac', method='pam', stat='gap', 
+      subtype_results$val <- perform_cluster_analysis(data$val, dist$val, dist.name='UniFrac', method='pam', stat='gap', 
                                grp.name=input$category, adj.name=NULL) 
     })
     
     observeEvent(input$run_subtype,{
-      output$gap_statistic <- renderText({
-        name <- paste0('<iframe style="height:600px; width:900px" src="plots/cluster_assess_gap_statistic_UniFrac.pdf"></iframe>')
-        return(name)
+      output$gap_statistic <- renderPlot({
+        subtype_results$val$gap_statistic
       })
       output$silhouette_width <- renderText({
         name <- paste0('<iframe style="height:600px; width:900px" src="plots/cluster_assess_asw_statistic_UniFrac.pdf"></iframe>')
@@ -1520,4 +1520,5 @@ shinyApp(
     )
   } 
 )
+
 
