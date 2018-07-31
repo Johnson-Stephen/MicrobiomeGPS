@@ -4282,11 +4282,14 @@ perform_cluster_analysis <- function (data.obj, dist.obj, dist.name=c('UniFrac')
     
     k.best.asw <- which.max(asw)
     cat("silhouette-optimal number of clusters:", k.best.asw, "\n")
-    pdf(paste0('cluster_assess_asw_statistic_', dist.name, ann, '.pdf'), width=6, height=6)
-    plot(1:20, asw, type= "h", main = "pam() clustering assessment",
-         xlab= "k (# clusters)", ylab = "average silhouette width")
-    axis(1, k.best.asw, paste("best",k.best.asw, sep="\n"), col = "red", col.axis = "red")
-    dev.off()
+    #pdf(paste0('cluster_assess_asw_statistic_', dist.name, ann, '.pdf'), width=6, height=6)
+    silhouette_width <- ggplot(data=data.frame(x=1:20, y=asw), aes(x=x,y=y)) + 
+                          geom_bar(stat="identity") + 
+                          labs(x="k (#clusters)", y="average silhouette width")
+    #plot(1:20, asw, type= "h", main = "pam() clustering assessment",
+    #     xlab= "k (# clusters)", ylab = "average silhouette width")
+    #axis(1, k.best.asw, paste("best",k.best.asw, sep="\n"), col = "red", col.axis = "red")
+    #dev.off()
     
     cat('ASW statistic finds ', k.best.asw, ' clusters.\n')
     
@@ -4312,7 +4315,7 @@ perform_cluster_analysis <- function (data.obj, dist.obj, dist.name=c('UniFrac')
     if (is.null(grp.name)) {
       generate_ordination(data.obj, dist.obj, dist.name, grp.name='Cluster', ann=paste0('Cluster', dist.name, ann))
     } else {
-      generate_ordination(data.obj, dist.obj, dist.name, grp.name='Cluster', strata=grp.name, ann=paste0('Cluster', dist.name, ann))
+      ordination <- generate_ordination2(data.obj, dist.obj, dist.name, grp.name='Cluster', strata=grp.name, ann=paste0('Cluster', dist.name, ann))
     }
     
     # Define cluster characteristics
@@ -4321,7 +4324,7 @@ perform_cluster_analysis <- function (data.obj, dist.obj, dist.name=c('UniFrac')
                                               method='kruskal', mt.method='fdr', 
                                               cutoff=0.01, prev=0.1, minp=0.002, ann='Cluster')
     
-    visualize_differential_analysis(data.obj, diff.obj, grp.name='Cluster', taxa.levels=c('Genus'), indivplot=FALSE,
+    results <- visualize_differential_analysis(data.obj, diff.obj, grp.name='Cluster', taxa.levels=c('Genus'), indivplot=FALSE,
                                     mt.method='fdr', cutoff=0.01, ann='Cluster')
     
     try(
@@ -4360,6 +4363,7 @@ perform_cluster_analysis <- function (data.obj, dist.obj, dist.name=c('UniFrac')
     )
     
   }
-  return(list(gap_statistic=gap_statistic, tab=tab))
+  return(list(gap_statistic=gap_statistic, tab=tab, silhouette_width=silhouette_width, ordination=ordination, 
+              boxplot=results$boxplot_aggregate, barplot=results$barplot_aggregate, effect_size=results$effect_size))
 }
 

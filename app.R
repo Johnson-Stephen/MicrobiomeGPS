@@ -421,19 +421,19 @@ shinyApp(
                                       plotOutput("gap_statistic")
                              ),
                              tabPanel("Avg. silhouette width",
-                                      htmlOutput("silhouette_width")
+                                      plotOutput("silhouette_width")
                              ),
                              tabPanel("PCoA on UniFrac",
-                                      htmlOutput("pcoa_unifrac")
+                                      plotOutput("pcoa_unifrac")
                              ),
                              tabPanel("Cluster-specific taxa barplot",
-                                      htmlOutput("cluster_barplot")
+                                      plotOutput("cluster_barplot")
                              ),
                              tabPanel("Cluster-specific taxa boxplot",
-                                      htmlOutput("cluster_boxplot")
+                                      plotOutput("cluster_boxplot")
                              ),
                              tabPanel("Cluster-specific effect size",
-                                      htmlOutput("cluster_effect")
+                                      plotOutput("cluster_effect")
                              ),
                              tabPanel("Association test",
                                       htmlOutput("cluster_association")
@@ -1389,25 +1389,20 @@ shinyApp(
       output$gap_statistic <- renderPlot({
         subtype_results$val$gap_statistic
       })
-      output$silhouette_width <- renderText({
-        name <- paste0('<iframe style="height:600px; width:900px" src="plots/cluster_assess_asw_statistic_UniFrac.pdf"></iframe>')
-        return(name)
+      output$silhouette_width <- renderPlot({
+        subtype_results$val$silhouette_width
       })
-      output$pcoa_unifrac <- renderText({
-        name <- paste0('<iframe style="height:600px; width:900px" src="plots/Beta_diversity_ordination_cmd_ClusterUniFrac.pdf"></iframe>')
-        return(name)
+      output$pcoa_unifrac <- renderPlot({
+        subtype_results$val$ordination
       })
-      output$cluster_boxplot <- renderText({
-        name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_DifferentialAbundance_AbundanceBoxplot_sqrt_fdr_0.01_Cluster_.pdf"></iframe>')
-        return(name)
+      output$cluster_boxplot <- renderPlot({
+        subtype_results$val$boxplot
       })
-      output$cluster_barplot <- renderText({
-        name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_DifferentialAbundance_AbundanceBarplot_sqrt_fdr_0.01_Cluster_.pdf"></iframe>')
-        return(name)
+      output$cluster_barplot <- renderPlot({
+        subtype_results$val$barplot
       })
-      output$cluster_effect <- renderText({
-        name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_DifferentialAbundance_logPBarplot_fdr_0.01_Cluster_.pdf"></iframe>')
-        return(name)
+      output$cluster_effect <- renderPlot({
+        subtype_results$val$effect_size
       })
       output$cluster_association <- renderUI({
         out <- cluster_tab()
