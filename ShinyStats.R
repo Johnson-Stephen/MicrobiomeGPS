@@ -4336,7 +4336,8 @@ perform_cluster_analysis <- function (data.obj, dist.obj, dist.name=c('UniFrac')
         }
         # Enrichment analysis - logistic regression - 1 vs other
         cat('Testing for association with the clusters - 1 vs other ...\n')
-        sink(paste0('Cluster_association_test', dist.name, ann, '.txt'))
+        #sink(paste0('Cluster_association_test', dist.name, ann, '.txt'))
+        clusters <- list()
         if (is.null(subject)) {
           cat('Generalized linear model (logistic regression) is performed.\n')
           
@@ -4345,7 +4346,7 @@ perform_cluster_analysis <- function (data.obj, dist.obj, dist.name=c('UniFrac')
             y <- rep(0, length(df$Cluster)) 
             y[df$Cluster == clus] <- 1
             df$yy <- y
-            prmatrix(summary(glm(form, data=df, family=binomial))$coefficients)	
+            clusters[[clus]] <- prmatrix(summary(glm(form, data=df, family=binomial))$coefficients)	
           }
         } else {
           cat('Generalized linear mixed effects model (logistic regression) is performed.\n')
@@ -4354,16 +4355,16 @@ perform_cluster_analysis <- function (data.obj, dist.obj, dist.name=c('UniFrac')
             y <- rep(0, length(df$Cluster)) 
             y[df$Cluster == clus] <- 1
             df$yy <- y
-            prmatrix(summary(glmmPQL(form, data=df, random = as.formula(paste0('~ 1|', subject)), family=binomial, verbose=F))$tTable)
+            clusters[[clus]] <- prmatrix(summary(glmmPQL(form, data=df, random = as.formula(paste0('~ 1|', subject)), family=binomial, verbose=F))$tTable)
             
           }
         }
-        sink()
+        #sink()
       }
     )
     
   }
   return(list(gap_statistic=gap_statistic, tab=tab, silhouette_width=silhouette_width, ordination=ordination, 
-              boxplot=results$boxplot_aggregate, barplot=results$barplot_aggregate, effect_size=results$effect_size))
+              boxplot=results$boxplot_aggregate, barplot=results$barplot_aggregate, effect_size=results$effect_size, clusters=clusters))
 }
 

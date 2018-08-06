@@ -50,7 +50,6 @@ library(dplyr)
 library(data.table)
 library(tidyverse)
 library(biom)
-library(phyloseq)
 library(DT)
 library(iheatmapr)
 library(RColorBrewer)
@@ -59,6 +58,11 @@ library(plotly)
 library(ggtree)
 library(microbiomeViz)
 library(tidytree)
+library(networkD3)
+library(r2d3)
+library(ggnetwork)
+library(tidygraph)
+
 options(shiny.maxRequestSize = 100*1024^2)
 shinyApp(
   ui = dashboardPage(
@@ -445,6 +449,9 @@ shinyApp(
         tabItem(tabName="network_analysis",
                 fluidRow(
                   box(width=3,
+                      h2("Create network"),
+                      actionButton("run_network", label="Submit"),
+                      verbatimTextOutput("network_text"),
                       h2("Parameters"),
                       selectInput("graph_layout", "Graph layout:", c("Automatic" = "layout_nicely", "Bipartite" = "layout.bipartite",
                                                                      "Fruchterman-Reingold" = "layout_with_fr","Kamada-Kawai" = "layout_with_kk"), 
@@ -453,7 +460,8 @@ shinyApp(
                   box(width=9,
                       tabBox(width=NULL,
                              tabPanel("SpiecEasi output",
-                                      plotOutput("spiec_easi", width="100%")
+                                      uiOutput("network_select"),
+                                      forceNetworkOutput("spiec_easi", width="100%")
                              )
                       )
                   )
@@ -486,7 +494,7 @@ shinyApp(
     func_vis <- reactiveValues(kegg=NULL, cog=NULL)
     tables <- reactiveValues(phy.prev=NULL, phy.abund = NULL, fam.prev = NULL, fam.abund = NULL, gen.prev = NULL, gen.abund = NULL)
     func_tbl <- reactiveValues(kegg=NULL, cog=NULL)
-    
+    network_results <-reactiveValues(val=NULL)
     
     alpha_results <- reactiveValues(rarefy_curve=NULL,boxplot=NULL,stats=NULL)
     
@@ -499,7 +507,7 @@ shinyApp(
     samples_removed_vector <- reactiveValues(val=NULL)
     samples_kept_vector <- reactiveValues(val=NULL)
     
-    debugSource("ShinyStats.R")
+    source("ShinyStats.R")
     
     output$columns = renderUI({
       mydata = get(input$dataset)
@@ -1405,8 +1413,19 @@ shinyApp(
         subtype_results$val$effect_size
       })
       output$cluster_association <- renderUI({
-        out <- cluster_tab()
-        div(HTML(as.character(out)),class="shiny-html-output")
+        #out <- cluster_tab()
+        #div(HTML(as.character(out)),class="shiny-html-output")
+        tables <- lapply(names(subtype_results$val$clusters), 
+                         function(x){
+                           print(xtable(subtype_results$val$clusters[[x]], caption=paste0("Cluster ", x, " test results")),
+                                 type="html",
+                                 html.table.attributes='class="data table table-bordered table-condensed"', 
+                                 caption.placement="top")
+                         }
+                        )
+        all <- lapply(tables, paste0)
+        div(HTML(as.character(all)),class="shiny-html-output")
+        
       })
     })
     
@@ -1435,31 +1454,97 @@ shinyApp(
       return(all)
     }
     
-    output$spiec_easi <- renderPlot({
-      load("DiffData.RData")
-      diff_genus <- gsub(".*;", "", rownames(diff.obj.rff$qv.list[['Genus']])[which(diff.obj.rff$qv.list[['Genus']] <= 0.1)])
-      phylo_select <- subset_taxa(phylo.obj, Genus %in% diff_genus)
-      
-      categories <- unique(get_variable(phylo_select, VOI))
-      
-      networks <- lapply(categories, function(y){ 
-        phylo_split <- prune_samples(get_variable(phylo_select, VOI)==y, phylo_select)
-        se.mb <- spiec.easi(phylo_split, method='mb', lambda.min.ratio=1e-2, nlambda=20, icov.select.params=list(rep.num=50, verbose=TRUE, ncores=10))
-        ig.mb <- adj2igraph(symBeta(getOptBeta(se.mb), mode='maxabs'), vertex.attr=list(name=tax_table(phylo_split)[,"Genus"]))
-        set_vertex_attr(ig.mb, VOI, index=V(ig.mb1), y)
+    observeEvent({
+      input$run_network
+    },{
+      output$network_select <- renderUI({
+        selectInput("network_select", 'Select category', c(as.character(unique(data.rff$val$meta.dat[[input$category]])), "Pick one"), "Pick one")
+        #name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_Barplot_Aggregate_Genus_sqrt_BorutaFeatures_Tentative__.pdf"></iframe>')
+        #return(name)
       })
+    })
+    
+    observeEvent({
+      input$network_select
+    },{
+      output$spiec_easi <- renderForceNetwork({
+        network_results$val[[input$network_select]]
+      })
+    })
+    
+    output$network_text <- renderText({
+      submit_network()
+      print("Done!")
+    })
+    
+    submit_network <- eventReactive(input$run_network,{
+      
+      progress <- shiny::Progress$new()
+      on.exit(progress$close())
+      n <- 2
+      progress$inc(1/n, detail = paste("Generating networks...."))
+      
+      pargs1 <- list(rep.num=50, seed=10010, ncores=10)
+      
+      VOI = input$category
+      method="mb"
+      
+      diff_genus <- gsub(".*;", "", rownames(diff.obj.rff$val$qv.list[['Genus']])[which(diff.obj.rff$val$qv.list[['Genus']] <= 0.1)])
+      cat(diff_genus)
+      
+      obj <- data.rff$val
+      
+      index <- which(obj$otu.name[,"Genus"] %in% diff_genus)
+      obj$otu.tab <- obj$otu.tab[index,]
+      obj$otu.name <- obj$otu.name[index,]
+      categories <- as.character(unique(obj$meta.dat[[VOI]]))
+      
+      networks <- sapply(categories, function(y){ 
+        samples <- rownames(obj$meta.dat[which(obj$meta.dat[VOI]==y),])
+        sub <- subset_data(obj, samples)
+        se.mb <- spiec.easi(t(sub$otu.tab), method='mb', lambda.min.ratio=1e-3, nlambda=30, sel.criterion='stars', pulsar.select=TRUE, pulsar.params=pargs1)
+        #ig.mb <- adj2igraph(symBeta(getOptBeta(se.mb), mode='maxabs'), vertex.attr=list(name=tax_table(phylo_split)[,"Genus"]))
+        ig.mb <- adj2igraph(symBeta(getOptBeta(se.mb), mode='maxabs'), vertex.attr=list(taxon=as.matrix(sub$otu.name[,"Genus"])))
+        set_vertex_attr(ig.mb, VOI, index=V(ig.mb), y)
+      }, USE.NAMES=TRUE, simplify=FALSE)
       
       color_count <- length(diff_genus)
       getPalette = colorRampPalette(brewer.pal(length(diff_genus), "Set3"))
       
       disj <- disjoint_union(networks)
-      V(disj2)$degree <- degree(disj)
-      network_plot <- ggplot(ggnetwork(disj2, layout="fruchtermanreingold", by=VOI), aes(x = x, y = y, xend = xend, yend = yend)) + 
-        geom_nodes(aes(color = vertex.names, size=degree)) + 
-        geom_edges(aes(color = ifelse(weight > 0, 'green', 'red'))) + 
-        facet_wrap(as.formula(paste("~", VOI))) + 
-        theme_facet()
+      V(disj)$degree <- igraph::degree(disj)
+      #network_plot <- ggplot(ggnetwork(disj, layout="fruchtermanreingold", by=VOI), aes(x = x, y = y, xend = xend, yend = yend)) + 
+      #  geom_nodes(aes(color = as.factor(vertex.names), size=degree)) + 
+      #  geom_edges(aes(color = ifelse(weight > 0, 'green', 'red'))) + 
+      #  facet_wrap(as.formula(paste("~", VOI))) + 
+      #  theme_facet()
+      
+      disj2 <- as_tbl_graph(disj) %>% activate(edges) %>% mutate(weight = if_else(weight > 0, 'turquoise', 'red'))
+      #ggraph_test <- ggraph(as_tbl_graph(disj2)) + 
+      #  geom_edge_link(aes(col=weight)) + 
+      #  geom_node_point(aes(size=degree, col=taxon)) + 
+      #  facet_nodes(as.formula(paste("~", VOI))) #+ scale_edge_colour_manual(values=unique(as_tibble(disj2)$weight))
+      
+      
+      ##HIVE GRAPH
+      #ggraph_hive <- ggraph(as_tbl_graph(disj2), 'hive', axis='taxon', sort.by='degree') + geom_edge_hive(aes(colour=factor(weight))) + geom_axis_hive(aes(colour=taxon), size=2, label=FALSE) + coord_fixed() + facet_nodes(as.formula(paste("~", VOI))) ###+  scale_edge_colour_manual(values=as_tibble(disj2)$weight)
+      
+      
+      ##D3 graph
+      d3_disj <- igraph_to_networkD3(disj, group=V(disj)$taxon)
+      link_cols <- ifelse(E(disj)$weight > 0, "green", "red")
+      forceNetwork(Links = d3_disj$links, Nodes = d3_disj$nodes, Source='source', Target='target', NodeID = 'name', Group='group', legend=TRUE, linkColour = link_cols)
+      
+      d3_networks <- sapply(categories, function(y){
+        d3 <- igraph_to_networkD3(networks[[y]], group=V(networks[[y]])$taxon)
+        link_cols <- ifelse(E(networks[[y]])$weight > 0, 'green', 'red')
+        forceNetwork(Links = d3$links, Nodes = d3$nodes, Source='source', Target='target', NodeID = 'name', Group='group', legend=TRUE, linkColour = link_cols)
+      }, USE.NAMES=TRUE, simplify=FALSE)
+      network_results$val <- d3_networks
+      
     })
+    
+    
     
     output$report_text <- renderText({
       submit_report()
