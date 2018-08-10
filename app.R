@@ -1484,7 +1484,7 @@ shinyApp(
       n <- 2
       progress$inc(1/n, detail = paste("Generating networks...."))
       
-      pargs1 <- list(rep.num=50, seed=10010, ncores=10)
+      pargs1 <- list(rep.num=50, seed=10010, ncores=1)
       
       VOI = input$category
       method="mb"
@@ -1502,7 +1502,7 @@ shinyApp(
       networks <- sapply(categories, function(y){ 
         samples <- rownames(obj$meta.dat[which(obj$meta.dat[VOI]==y),])
         sub <- subset_data(obj, samples)
-        se.mb <- spiec.easi(t(sub$otu.tab), method='mb', lambda.min.ratio=1e-3, nlambda=30, sel.criterion='stars', pulsar.select=TRUE, pulsar.params=pargs1)
+        se.mb <- spiec.easi(t(sub$otu.tab), method='mb', lambda.min.ratio=1e-3, nlambda=30, sel.criterion='bstars', pulsar.select=TRUE, pulsar.params=pargs1)
         #ig.mb <- adj2igraph(symBeta(getOptBeta(se.mb), mode='maxabs'), vertex.attr=list(name=tax_table(phylo_split)[,"Genus"]))
         ig.mb <- adj2igraph(symBeta(getOptBeta(se.mb), mode='maxabs'), vertex.attr=list(taxon=as.matrix(sub$otu.name[,"Genus"])))
         set_vertex_attr(ig.mb, VOI, index=V(ig.mb), y)
