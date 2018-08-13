@@ -16,14 +16,32 @@ params:
   num_family : ""
   num_genus : ""
   perc_zero : ""
+  phy_prev : ""
+  fam_prev : "" 
+  gen_prev : ""
+  phy_abund : ""
+  fam_abund : ""
+  gen_abund : ""
+  abund_list : ""
+  obj : ""
+  barplot_level : ""
 ---
 
 # Sequencing statistics
-<div>
-<object data="Sequence_Analysis_Statistics_`r params$voi`.png" width="900" height="600">
-</object>
-</div>
+```{r, echo=FALSE}
+sam.abund <- colSums(params$obj$otu.tab)
+sam.abund <- sam.abund[sam.abund >= 1]
+ggplot2::ggplot(data=data.frame(x=sam.abund), aes(x=x)) + geom_histogram(col='black', fill='gray')  + ylab('Frequency') + xlab('Sequencing depth') + theme_bw()
+```
 
+```{r, echo=FALSE}
+otu.tab <- params$obj$otu.tab
+map <- params$obj$meta.dat
+colnames(otu.tab) <-  map[[params$voi]]
+df <- data.frame(Group=names(colSums(otu.tab)), coverage=colSums(otu.tab))
+ggplot2::ggplot(df, aes(x=Group, y=log10(coverage), col=Group)) + geom_boxplot(position=position_dodge(width=0.75), outlier.colour = NA) +
+  geom_jitter(alpha=0.6, size=3.0,  position = position_jitter(w = 0.1)) + theme_bw()
+```
 
 Paired R1 and R2 sequence reads were processed via the hybrid-denovo bioinformatics sequencing pipeline. Samples with less than `r params$minreads` were removed (`r length(params$sampl_removed)` samples were removed). In total, `r sum(params$samples_kept)` reads (median: `r fivenum(params$samples_kept)[3]` reads per sample, range: `r fivenum(params$samples_kept)[1]` to `r fivenum(params$samples_kept)[5]` reads per sample, lower quartile: `r fivenum(params$samples_kept)[2]`, upper quartile: `r fivenum(params$samples_kept)[4]`) passed quality control in study samples
 
@@ -34,76 +52,176 @@ The percentage of zeroes in this dataset is `r params$perc_zero`
 
 `r params$table`
 
-
-
-
 # Overall Taxonomic Profile
 
 ## Prevalent taxa 
 Prevalence refers to the proportion of samples in which a given taxa can be found. For example, a taxa found in 50% of the samples has a prevalence of 50%.
-```{r, echo=FALSE}
-var = params$voi
-mytab <- read.csv(paste0("Sequence_Analysis_Statistics_table_", var, ".tsv"), head=FALSE, sep="")
-knitr::kable(mytab[mytab$V3=="Phylum" & mytab$V4=="Prevalence", 1:2], digits=2, align=c(rep("l",4), rep("c",4)), col.names=c("Phylum", "Prevalence(%)"), caption="Most prevalent phyla", row.names=FALSE)
-knitr::kable(mytab[mytab$V3=="Family" & mytab$V4=="Prevalence", 1:2], digits=2, align=c(rep("l",4), rep("c",4)), col.names=c("Family", "Prevalence(%)"), caption="Most prevalent families", row.names=FALSE)
-knitr::kable(mytab[mytab$V3=="Genus" & mytab$V4=="Prevalence", 1:2], digits=2, align=c(rep("l",4), rep("c",4)), col.names=c("Genus", "Prevalence(%)"), caption="Most prevalent genera", row.names=FALSE)
-```
 
+```{r, echo=FALSE}
+DT::datatable({reshape2::melt(params$phy_prev, value.name="Prevalence (%)")}, caption="Prevalent phyla")
+DT::datatable({reshape2::melt(params$fam_prev, value.name="Prevalence (%)")}, caption="Prevalent families")
+DT::datatable({reshape2::melt(params$gen_prev, value.name="Prevalence (%)")}, caption="Prevalent genera")
+```
 
 ## Abundant taxa 
 Abundance is the relative proportion of a taxa in the environment. For example, if 50% of 16S sequences in a sample belong to a given taxa, the relative abundance of that taxa is 50%. 
-```{r, echo=FALSE}
-var = params$voi
-mytab <- read.csv(paste0("Sequence_Analysis_Statistics_table_",var,".tsv"), head=FALSE, sep="")
-knitr::kable(mytab[mytab$V3=="Phylum" & mytab$V4=="Abundance", 1:2], digits=2, align=c(rep("l",4), rep("c",4)), col.names=c("Phylum", "Abundance(%)"), caption="Most abundant phyla", row.names=FALSE)
-knitr::kable(mytab[mytab$V3=="Family" & mytab$V4=="Abundance", 1:2], digits=2, align=c(rep("l",4), rep("c",4)), col.names=c("Family", "Abundance(%)"), caption="Most abundant families", row.names=FALSE)
-knitr::kable(mytab[mytab$V3=="Genus" & mytab$V4=="Abundance", 1:2], digits=2, align=c(rep("l",4), rep("c",4)), col.names=c("Genus", "Abundance(%)"), caption="Most abundant genera", row.names=FALSE)
-```
 
+```{r, echo=FALSE}
+DT::datatable({reshape2::melt(params$phy_abund, value.name="Prevalence (%)")}, caption="Abundant phyla")
+DT::datatable({reshape2::melt(params$fam_abund, value.name="Prevalence (%)")}, caption="Abundant families")
+DT::datatable({reshape2::melt(params$gen_abund, value.name="Prevalence (%)")}, caption="Abundant genera")
+```
 
 # Stacked Barplots 
 
-## Grouped barplot
-<div>
-<object data="Taxa_Stacked_Barplot_Grouped_Compo__combine.pdf" type="application/pdf" width="900" height="600">
-</object>
-</div>
+## Grouped barplot {.tabset}
 
-## Individual barplot
-<div>
-<object data="Taxa_Stacked_Barplot_Overall_Compo_.pdf" type="application/pdf" width="900" height="600">
-</object>
-</div>
+###Phylum
 
+```{r, echo=FALSE}
+prop <- prop.table(params$obj$abund.list[["Phylum"]],2)
+low_means <- subset(prop, rowMeans(prop) < 0.01)
+high_means <- subset(prop, rowMeans(prop) >= 0.01)
+other <- colSums(low_means)
+prop <- rbind(high_means, as.data.frame(t(other)))
+rownames(prop)[nrow(prop)] <- "Other"
+prop.m <- reshape2::melt(as.matrix(prop[rev(order(rowMeans(prop))),]))
+prop.m$factor1 <- params$obj$meta.dat[match(prop.m$Var2, rownames(params$obj$meta.dat)), params$voi]
 
+ggplot(prop.m, aes(factor1, value, fill = Var1, key=Var1) ) +
+      geom_bar(stat="identity", position="fill") +
+      scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Set3"))(length(unique(prop.m$Var1))))
+```
 
-# Heatmaps 
+###Family
+```{r, echo=FALSE}
+prop <- prop.table(params$obj$abund.list[["Family"]],2)
+low_means <- subset(prop, rowMeans(prop) < 0.01)
+high_means <- subset(prop, rowMeans(prop) >= 0.01)
+other <- colSums(low_means)
+prop <- rbind(high_means, as.data.frame(t(other)))
+rownames(prop)[nrow(prop)] <- "Other"
+prop.m <- reshape2::melt(as.matrix(prop[rev(order(rowMeans(prop))),]))
+prop.m$factor1 <- params$obj$meta.dat[match(prop.m$Var2, rownames(params$obj$meta.dat)), params$voi]
+
+ggplot(prop.m, aes(factor1, value, fill = Var1, key=Var1) ) +
+      geom_bar(stat="identity", position="fill") +
+      scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Set3"))(length(unique(prop.m$Var1))))
+```
+
+###Genus
+
+```{r, echo=FALSE}
+prop <- prop.table(params$obj$abund.list[["Genus"]],2)
+low_means <- subset(prop, rowMeans(prop) < 0.01)
+high_means <- subset(prop, rowMeans(prop) >= 0.01)
+other <- colSums(low_means)
+prop <- rbind(high_means, as.data.frame(t(other)))
+rownames(prop)[nrow(prop)] <- "Other"
+prop.m <- reshape2::melt(as.matrix(prop[rev(order(rowMeans(prop))),]))
+prop.m$factor1 <- params$obj$meta.dat[match(prop.m$Var2, rownames(params$obj$meta.dat)), params$voi]
+
+ggplot(prop.m, aes(factor1, value, fill = Var1, key=Var1) ) +
+      geom_bar(stat="identity", position="fill") +
+      scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Set3"))(length(unique(prop.m$Var1))))
+```
+
+## Individual barplot {.tabset}
+
+###Phylum
+
+```{r, echo=FALSE}
+prop <- prop.table(params$obj$abund.list[["Phylum"]],2)
+low_means <- subset(prop, rowMeans(prop) < 0.01)
+high_means <- subset(prop, rowMeans(prop) >= 0.01)
+other <- colSums(low_means)
+prop <- rbind(high_means, as.data.frame(t(other)))
+rownames(prop)[nrow(prop)] <- "Other"
+prop.m <- reshape2::melt(as.matrix(prop[rev(order(rowMeans(prop))),]))
+prop.m$factor1 <- params$obj$meta.dat[match(prop.m$Var2, rownames(params$obj$meta.dat)), params$voi]
+
+ggplot(prop.m, aes(Var2, value, fill = Var1) ) +
+        geom_bar(stat="identity") +
+        facet_grid(~factor1, scales="free", space="free_x") + 
+        scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Set3"))(length(unique(prop.m$Var1))))
+```
+
+###Family
+
+```{r, echo=FALSE}
+prop <- prop.table(params$obj$abund.list[["Family"]],2)
+low_means <- subset(prop, rowMeans(prop) < 0.01)
+high_means <- subset(prop, rowMeans(prop) >= 0.01)
+other <- colSums(low_means)
+prop <- rbind(high_means, as.data.frame(t(other)))
+rownames(prop)[nrow(prop)] <- "Other"
+prop.m <- reshape2::melt(as.matrix(prop[rev(order(rowMeans(prop))),]))
+prop.m$factor1 <- params$obj$meta.dat[match(prop.m$Var2, rownames(params$obj$meta.dat)), params$voi]
+
+ggplot(prop.m, aes(Var2, value, fill = Var1) ) +
+        geom_bar(stat="identity") +
+        facet_grid(~factor1, scales="free", space="free_x") + 
+        scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Set3"))(length(unique(prop.m$Var1))))
+```
+
+###Genus
+
+```{r, echo=FALSE}
+prop <- prop.table(params$obj$abund.list[["Genus"]],2)
+low_means <- subset(prop, rowMeans(prop) < 0.01)
+high_means <- subset(prop, rowMeans(prop) >= 0.01)
+other <- colSums(low_means)
+prop <- rbind(high_means, as.data.frame(t(other)))
+rownames(prop)[nrow(prop)] <- "Other"
+prop.m <- reshape2::melt(as.matrix(prop[rev(order(rowMeans(prop))),]))
+prop.m$factor1 <- params$obj$meta.dat[match(prop.m$Var2, rownames(params$obj$meta.dat)), params$voi]
+
+ggplot(prop.m, aes(Var2, value, fill = Var1) ) +
+        geom_bar(stat="identity") +
+        facet_grid(~factor1, scales="free", space="free_x") + 
+        scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Set3"))(length(unique(prop.m$Var1))))
+```
+
+# Heatmaps {.tabset}
 
 ## Proportion-based heatmap
 
 Proportional heatmaps tend to provide more weight to highly abundant taxa.
 
-<div>
-<object data="Taxa_Heatmap_Genus_All_P.pdf" type="application/pdf" width="900" height="600">
-</object>
-</div>
+```{r, echo=FALSE}
+library(d3heatmap)
+prop <- prop.table(params$obj$abund.list$Genus,2)
+col.scheme = c("white", brewer.pal(11, "Spectral"))
+minp <- min(prop[prop!=0]/1.1)
+prop[prop==0] <- minp
+prop <- log10(prop)
+d3heatmap(prop, colors=col.scheme)
+```
 
 ## Binary-based heatmap (presence/absence)
 
 Presence/absence heatmaps tend to provide more weight to rare taxa.
 
-<div>
-<object data="Taxa_Heatmap_Genus_All_B.pdf" type="application/pdf" width="900" height="600">
-</object>
-</div>
-
+```{r, echo=FALSE}
+prop <- prop.table(params$obj$abund.list$Genus,2)
+col.scheme <- c("lightyellow", "red")
+prop[, ] <- as.numeric(prop != 0)
+d3heatmap(prop, colors=col.scheme)
+```
 
 ## Rank-based heatmap
 
 Ranked heatmaps tend to provide equal weight to highly abundant and rare taxa.
 
-<div>
-<object data="Taxa_Heatmap_Genus_All_R.pdf" type="application/pdf" width="900" height="600">
-</object>
-</div>
-
+```{r, echo=FALSE}
+prop <- prop.table(params$obj$abund.list$Genus,2)
+col.scheme <- c('white', colorRampPalette(c("green", "black", "red"))(ncol(prop)-1))
+          prop <- t(apply(prop, 1, function(x) {
+            temp <- rank(x[x!=0])
+            s <- (ncol(prop) - 1) / (max(temp) - min(temp))
+            temp <- 1 + (temp - min(temp)) * s
+            x[x!=0] <- temp
+            x
+          }))
+d3heatmap(prop, colors=col.scheme)
+```

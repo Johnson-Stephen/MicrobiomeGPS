@@ -59,13 +59,14 @@ library(ggtree)
 library(microbiomeViz)
 library(tidytree)
 library(networkD3)
-library(r2d3)
 library(ggnetwork)
 library(tidygraph)
+library(shinyjs)
 
 options(shiny.maxRequestSize = 100*1024^2)
 shinyApp(
   ui = dashboardPage(
+    
     dashboardHeader(title = "MicrobiomeGPS"),
     dashboardSidebar(
       sidebarMenu(
@@ -81,7 +82,7 @@ shinyApp(
         menuItem("Generate reports", tabName = "Report", icon = icon("th"))
       )
     ),
-    dashboardBody(#"MicrobiomeGPS",
+    dashboardBody(useShinyjs(),
       height="100%",
       tabItems(
         tabItem(tabName = "create_dataset",
@@ -151,7 +152,10 @@ shinyApp(
                       numericInput("prev", "Minimum prevalence threshold (%):", 10, min = 0, max = 100, step = 10),
                       numericInput("abund", "Minimum abundance threshold (%):", 0.2, min = 0, max = 100, step = 1),
                       actionButton("summary_stats", label = "Submit"),
-                      h3(textOutput("summary_status", container = span))
+                      h3(textOutput("summary_status", container = span)),
+                      disabled(
+                        downloadButton("summary_report", label = "Create & Download")
+                      )
                   ),
                   box(width=9,
                       tabBox(width=12,
@@ -497,7 +501,7 @@ shinyApp(
     network_results <-reactiveValues(val=NULL)
     
     alpha_results <- reactiveValues(rarefy_curve=NULL,boxplot=NULL,stats=NULL)
-    
+    summary_plots <- reactiveValues(val=NULL)
     beta <- reactiveValues(ord=NULL,clust=NULL,barplot=NULL,boxplot=NULL,permanova=NULL,mirkat=NULL,disper=NULL)
     
     diff_vis <- reactiveValues(val=NULL)
@@ -869,6 +873,9 @@ shinyApp(
       output$gen.abund <- DT::renderDataTable({
         reshape2::melt(tables$gen.abund, value.name="Abundance (%)")
       }, caption="Abundant Genus")
+      
+      
+      enable("summary_report")
     })
     
     observeEvent({
@@ -914,16 +921,22 @@ shinyApp(
       prop.m <- melt(prop[rev(order(rowMeans(prop))),])
       prop.m$factor1 <- data$val$meta.dat[match(prop.m$Var2, rownames(data$val$meta.dat)), input$category]
       
-      output$summary_barplot1 <- renderPlot({
-        ggplot(prop.m, aes(factor1, value, fill = Var1, key=Var1) ) +
+      summary_plots$barplot1 <- ggplot(prop.m, aes(factor1, value, fill = Var1, key=Var1) ) +
         geom_bar(stat="identity") +
         guides(fill=FALSE) + scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Set3"))(length(unique(prop.m$Var1))))
+      
+      summary_plots$barplot2 <- ggplot(prop.m, aes(Var2, value, fill = Var1) ) +
+        geom_bar(stat="identity") +
+        guides(fill=FALSE) + facet_grid(~factor1, scales="free", space="free_x") + 
+        scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Set3"))(length(unique(prop.m$Var1))))
+      
+      output$summary_barplot1 <- renderPlot({
+        summary_plots$barplot1
       })
       
+      
       output$summary_barplot2 <- renderPlot({
-        ggplot(prop.m, aes(Var2, value, fill = Var1) ) +
-          geom_bar(stat="identity") +
-          guides(fill=FALSE) + facet_grid(~factor1, scales="free", space="free_x") + scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Set3"))(length(unique(prop.m$Var1))))
+        summary_plots$barplot2
       })
     }, ignoreInit = TRUE)
     
@@ -931,6 +944,47 @@ shinyApp(
       submit_summary()
     })
    
+    
+    output$summary_report <- downloadHandler(
+      filename = function() {
+        paste("summary.html")
+      },
+      content <- function(file) {
+        VOI <- input$category
+        summary_table <- dplyr::select(data$val$meta.dat, VOI) %>% group_by_(VOI) %>% dplyr::summarize(n()) %>% knitr::kable()
+        filter_dep <- input$filter_dep
+        OTU_vector <- as.vector(rowSums(data$val$otu.tab))
+        num_phyla <- unique(data$val$otu.name.full[,"Phylum"])
+        num_family <- unique(data$val$otu.name.full[,"Family"])
+        num_genus <- unique(data$val$otu.name.full[,"Genus"])
+        samples_removed <- samples_removed_vector$val
+        samples_kept <- samples_kept_vector$val
+        perc_zero <- sum(colSums(data$val$otu.tab == 0))/(nrow(data$val$otu.tab)*ncol(data$val$otu.tab))*100
+        num_rows <- length(unique(data$val$meta.dat[[VOI]]))
+        rmarkdown::render("markdown/summary.Rmd", params = list(
+          voi = VOI,
+          table = summary_table,
+          minreads = filter_dep,
+          samples_removed = samples_removed,
+          samples_kept = samples_kept,
+          OTU_vector = OTU_vector,
+          num_phyla = num_phyla,
+          num_family = num_family,
+          num_genus = num_genus,
+          perc_zero = perc_zero,
+          phy_prev = tables$phy.prev,
+          fam_prev = tables$fam.prev,
+          gen_prev = tables$gen.prev,
+          phy_abund = tables$phy.abund,
+          fam_abund = tables$fam.abund,
+          gen_abund = tables$gen.abund,
+          obj = data$val,
+          barplot_level = input$barplot_level
+        ))
+        file.copy("markdown/summary.html", file)
+      }
+    )
+    
     submit_alpha <- eventReactive(input$run_alpha,{
       progress <- shiny::Progress$new()
       on.exit(progress$close())
@@ -1563,7 +1617,7 @@ shinyApp(
       samples_kept <- samples_kept_vector$val
       perc_zero <- sum(colSums(data$val$otu.tab == 0))/(nrow(data$val$otu.tab)*ncol(data$val$otu.tab))*100
       num_rows <- length(unique(data$val$meta.dat[[VOI]]))
-      rmarkdown::render("summary.Rmd", params = list(
+      rmarkdown::render("markdown/summary2.Rmd", params = list(
         voi = VOI,
         table = summary_table,
         minreads = filter_dep,
@@ -1573,7 +1627,15 @@ shinyApp(
         num_phyla = num_phyla,
         num_family = num_family,
         num_genus = num_genus,
-        perc_zero = perc_zero
+        perc_zero = perc_zero,
+        phy_prev = tables$phy.prev,
+        fam_prev = tables$fam.prev,
+        gen_prev = tables$gen.prev,
+        phy_abund = tables$phy.abund,
+        fam_abund = tables$fam.abund,
+        gen_abund = tables$gen.abund,
+        obj = data$val,
+        barplot_level = input$barplot_level
       ))
       rmarkdown::render("alpha_beta_diversity.Rmd", params = list(
         voi = VOI,
