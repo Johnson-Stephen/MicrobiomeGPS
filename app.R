@@ -42,7 +42,7 @@ library(Matrix)
 library(ggnet)
 library(igraph)
 library(gridExtra)
-library(devtools)
+#library(devtools)
 library(SpiecEasi)
 library(ROCR)
 library(cluster)
@@ -127,7 +127,8 @@ shinyApp(
                          ),
                          box(title="5. Create dataset", solidHeader=TRUE, status="primary", width=NULL,
                              actionButton("create_dataset", label = "Submit"),
-                             h3(textOutput("status", container = span))
+                             h3(textOutput("status", container = span)),
+                             actionButton("load_dataset", label="Submit")
                              
                          )
                          
@@ -154,7 +155,7 @@ shinyApp(
                       actionButton("summary_stats", label = "Submit"),
                       h3(textOutput("summary_status", container = span)),
                       disabled(
-                        downloadButton("summary_report", label = "Create & Download")
+                        downloadButton("summary_report", label = "Download Report")
                       )
                   ),
                   box(width=9,
@@ -195,7 +196,10 @@ shinyApp(
                       numericInput("rare_iter", "Rarefication iterations:", 5, min = 1, step = 1),
                       selectInput("alpha_nonrare_test", label = "Nonrarefied Test", choices = c("NO","YES")),
                       actionButton("run_alpha", label="Submit"),
-                      verbatimTextOutput("alpha_text")
+                      verbatimTextOutput("alpha_text"),
+                      disabled(
+                        downloadButton("alpha_report", label = "Download Report")
+                      )
                   ),
                   box(width=9,
                       tabBox(width=12,
@@ -229,7 +233,10 @@ shinyApp(
                       checkboxInput("rf_check", "Rarefaction", value = TRUE),
                       selectInput("ord_measure", "Ordination method", choices=c("PCoA", "NDMS"), selected="PCoA"),
                       actionButton("run_beta", label="Submit"),
-                      verbatimTextOutput("beta_text")
+                      verbatimTextOutput("beta_text"),
+                      disabled(
+                        downloadButton("beta_report", label = "Download Report")
+                      )
                   ),
                   box(width=9,
                       tabBox(width=12,
@@ -272,7 +279,10 @@ shinyApp(
                       numericInput("taxa_abund", "Minimum abundance threshold (%):", 0.2, min = 0, max = 100, step = 1),
                       uiOutput("vis_level"),
                       actionButton("run_taxa", label="Submit"),
-                      verbatimTextOutput("taxa_text")
+                      verbatimTextOutput("taxa_text"),
+                      disabled(
+                        downloadButton("taxa_report", label = "Download Report")
+                      )
                   ),
                   box(width=9,
                       tabBox(width=12,
@@ -293,7 +303,7 @@ shinyApp(
                                       iheatmaprOutput("taxa_rank_heatmap")
                              ),
                              tabPanel("Cladogram",
-                                      plotOutput("cladogram")
+                                      plotOutput("cladogram", width="100%", height="auto")
                              ),
                              tabPanel("Test results",
                                       DT::dataTableOutput("taxa_test_results")
@@ -316,7 +326,10 @@ shinyApp(
                       numericInput("pred_prev", "Minimum prevalence threshold (%):", 10, min = 0, max = 100, step = 10),
                       numericInput("pred_abund", "Minimum abundance threshold (%):", 0.2, min = 0, max = 100, step = 1),
                       actionButton("run_pred", label="Submit"),
-                      verbatimTextOutput("pred_text")
+                      verbatimTextOutput("pred_text"),
+                      disabled(
+                        downloadButton("predict_report", label = "Download Report")
+                      )
                   ),
                   box(width=9,
                       tabBox(width=12,
@@ -363,7 +376,10 @@ shinyApp(
                       numericInput("func_abund", "Minimum abundance threshold (%):", 0.2, min = 0, max = 100, step = 1),
                       #uiOutput("func_vis_level"),
                       actionButton("run_func", label="Submit"),
-                      verbatimTextOutput("func_text")
+                      verbatimTextOutput("func_text"),
+                      disabled(
+                        downloadButton("func_report", label = "Download Report")
+                      )
                   ),
                   box(width=9,
                       tabBox(width=12,
@@ -421,7 +437,10 @@ shinyApp(
                       selectInput("subtype_distance", "Distance used:", choices=c("UniFrac", "WUniFrac", "GUniFrac", "BC", "JS"), selected="UniFrac"),
                       checkboxGroupInput("assessment", "Assessment statistics:", choices=c("Gap", "ASW"), selected="Gap"),
                       actionButton("run_subtype", label="Submit"),
-                      verbatimTextOutput("subtype_text")
+                      verbatimTextOutput("subtype_text"),
+                      disabled(
+                        downloadButton("subtype_report", label = "Download Report")
+                      )
                   ),
                   box(width=9,
                       tabBox(width=12,
@@ -459,7 +478,10 @@ shinyApp(
                       h2("Parameters"),
                       selectInput("graph_layout", "Graph layout:", c("Automatic" = "layout_nicely", "Bipartite" = "layout.bipartite",
                                                                      "Fruchterman-Reingold" = "layout_with_fr","Kamada-Kawai" = "layout_with_kk"), 
-                                  selected="layout_nicely")
+                                  selected="layout_nicely"),
+                      disabled(
+                        downloadButton("network_report", label = "Download Report")
+                      )
                   ),
                   box(width=9,
                       tabBox(width=NULL,
@@ -511,7 +533,7 @@ shinyApp(
     samples_removed_vector <- reactiveValues(val=NULL)
     samples_kept_vector <- reactiveValues(val=NULL)
     
-    source("ShinyStats.R")
+    debugSource("ShinyStats.R")
     
     output$columns = renderUI({
       mydata = get(input$dataset)
@@ -775,6 +797,19 @@ shinyApp(
     
     output$status <- renderText({
       submit()
+    })
+    
+    observeEvent(input$load_dataset,{
+      load("Data.RData")
+      load("Phylo.RData")
+      load("PhyloRar.RData")
+      data$val = data.obj
+      data.rff$val = data.obj.rff
+      dist$val = dist.obj
+      dist.rff$val = dist.obj.rff
+      phylo$val = phylo.obj
+      phylo.rff$val = phylo.obj
+      
     })
     
     observeEvent(input$category,{
@@ -1178,6 +1213,7 @@ shinyApp(
                                                     prev=input$taxa_prev / 100, 
                                                     minp=input$taxa_abund / 100, 
                                                     ann=input$taxa_method)
+      #save(diff.obj.rff$val$pv.list, diff.obj.rff$val$fc.list, diff.obj.rff$val$qv.list, file="DiffData.RData")
       progress$inc(1/n, detail = paste("Creating visualizations for differential analysis..."))
       diff_vis$val <- visualize_differential_analysis(data.rff$val, 
                                       diff.obj.rff$val, 
@@ -1186,7 +1222,7 @@ shinyApp(
                                       mt.method=input$mult_test, 
                                       cutoff=input$sig_level / 100, 
                                       ann=input$taxa_method)
-      save(diff.obj.rff, file="DiffData.RData")
+      
     })
     
     observeEvent(input$run_taxa,{
@@ -1209,9 +1245,16 @@ shinyApp(
       output$taxa_rank_heatmap <- renderIheatmap({
         diff_vis$val$rank_heatmap
       })
+      #output$cladogram <- renderPlot({
+      #  diff_vis$val$cladogram
+      #})
+      
       output$cladogram <- renderPlot({
         diff_vis$val$cladogram
+      }, height=function(){
+        session$clientData$output_cladogram_width * .67
       })
+      
       output$taxa_test_results <- DT::renderDataTable({
          diff.obj.rff$val$res.final[,c("Pvalue", "Qvalue", "logFoldChange", "PrevalChange")]
       }, caption="Differential abundance analysis for all levels")

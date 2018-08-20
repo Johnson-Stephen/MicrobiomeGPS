@@ -2317,6 +2317,9 @@ perform_differential_analysis <- function (data.obj, grp.name, adj.name=NULL, su
   # To be completed
   df <- data.obj$meta.dat
   grp <- df[, grp.name]
+  if (is.factor(grp) | is.character(grp)) {
+    grp <- factor(grp)
+  }
   res.final <- NULL
   ind <- !is.na(grp)
   data.obj <- subset_data(data.obj, ind)
@@ -2540,6 +2543,7 @@ perform_differential_analysis <- function (data.obj, grp.name, adj.name=NULL, su
     if (!is.null(res.final)) {
       colnames(res.final) <- colnames(res)
     }
+    save(pv.list, fc.list, qv.list, m.list, res.final, file="DiffData.RData")
     return(list(pv.list=pv.list, fc.list=fc.list, pc.list=pc.list, qv.list=qv.list, m.list=m.list, res.final=res.final))
   } else {
     if (is.null(method)) {
@@ -2633,6 +2637,7 @@ perform_differential_analysis <- function (data.obj, grp.name, adj.name=NULL, su
     if (!is.null(res.final)) {
       colnames(res.final) <- colnames(res)
     }
+    save(pv.list, fc.list, qv.list, m.list, res.final, file="DiffData.RData")
     return(list(pv.list=pv.list, fc.list=fc.list, qv.list=qv.list, m.list=m.list, res.final=res.final))
   }
   
@@ -3576,6 +3581,9 @@ make_cladogram <- function(data.obj, diff.obj, grp.name, cutoff=0.05, prev=0.1, 
   
   df <- data.obj$meta.dat
   grp <- df[, grp.name]
+  if(is.factor(grp)){
+    grp <- factor(grp)
+  }
   levels(grp) <- paste0(1:nlevels(grp), levels(grp))
 
   qv.list <- diff.obj$qv.list
@@ -3650,20 +3658,22 @@ make_cladogram <- function(data.obj, diff.obj, grp.name, cutoff=0.05, prev=0.1, 
     paste(paste0(tax_chars2, "__", spl[[1]])[1:length(spl[[1]])], collapse='|')
   }))
   
-  tips <- names(tax.family[which(tax.family %in% tax.family.a)])
-  tree <- data.obj$tree
-  pruned <- drop.tip(data.obj$tree,data.obj$tree$tip.label[-match(tips,data.obj$tree$tip.label)])
-  pruned$tip.label <- tax.family[pruned$tip.label]
+  phlan2 <- phlan2[grepl("k__Bacteria", phlan2[,1]),] ##Add support for Archaea later
+  phlan <- phlan[grepl("Bacteria", phlan[,1]),]
+  #tips <- names(tax.family[which(tax.family %in% tax.family.a)])
+  #tree <- data.obj$tree
+  #pruned <- drop.tip(data.obj$tree,data.obj$tree$tip.label[-match(tips,data.obj$tree$tip.label)])
+  #pruned$tip.label <- tax.family[pruned$tip.label]
   
-  nodes <- lapply(unique(pruned$tip.label[duplicated(pruned$tip.label)]), function(x){
-    ggtree::MRCA(pruned, tip=c(x,x))
-  })
+  #nodes <- lapply(unique(pruned$tip.label[duplicated(pruned$tip.label)]), function(x){
+  #  ggtree::MRCA(pruned, tip=c(x,x))
+  #})
   
-  pruned2 <- ggtree(pruned, layout="circular")
+  #pruned2 <- ggtree(pruned, layout="circular")
   
-  for(x in unlist(nodes)){
-    pruned2 <- ggtree::collapse(pruned2, node=x)
-  }
+  #for(x in unlist(nodes)){
+  #  pruned2 <- ggtree::collapse(pruned2, node=x)
+  #}
   
   ###Nodes to highlight
   highlight <- sapply(strsplit(phlan2[which(phlan2[,2] == "3.5"),][,1], "\\|"), tail, 1)
@@ -3713,7 +3723,7 @@ parseLefse <- function(phlan, index=1, header=FALSE, delimiter='\\.', node.size.
   ###mapping2$nodeSize <- a*log(mapping$taxaAbun) + b
   mapping2$nodeClass <- factor(tax_class2, levels = rev(tax_chars2))
   
-  mapping2 <- mapping2[order(mapping2$node),]
+  #mapping2 <- mapping2[order(mapping2$node),]
   
   node.label2 <- rownames(mapping2)[!mapping2$isTip2]
   phylo <- structure(list(edge = edges2,

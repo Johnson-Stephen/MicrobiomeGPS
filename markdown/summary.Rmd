@@ -195,7 +195,7 @@ col.scheme = c("white", brewer.pal(11, "Spectral"))
 minp <- min(prop[prop!=0]/1.1)
 prop[prop==0] <- minp
 prop <- log10(prop)
-d3heatmap(prop, colors=col.scheme)
+d3heatmap(prop, colors=col.scheme,yaxis_font_size=".1px")
 ```
 
 ## Binary-based heatmap (presence/absence)
@@ -206,7 +206,7 @@ Presence/absence heatmaps tend to provide more weight to rare taxa.
 prop <- prop.table(params$obj$abund.list$Genus,2)
 col.scheme <- c("lightyellow", "red")
 prop[, ] <- as.numeric(prop != 0)
-d3heatmap(prop, colors=col.scheme)
+d3heatmap(prop, colors=col.scheme, yaxis_font_size="1px")
 ```
 
 ## Rank-based heatmap
@@ -223,5 +223,5 @@ col.scheme <- c('white', colorRampPalette(c("green", "black", "red"))(ncol(prop)
             x[x!=0] <- temp
             x
           }))
-d3heatmap(prop, colors=col.scheme)
+d3heatmap(prop, colors=col.scheme, yaxis_font_size=0.1)
 ```
