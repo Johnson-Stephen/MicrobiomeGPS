@@ -95,7 +95,11 @@ shinyApp(
                              fileInput("biom_file", label = h3("Biom file")),
                              fileInput("kegg_file", label = h3("KEGG file")),
                              fileInput("cog_file", label = h3("COG file"))
-                         ),
+                         )#,
+                         
+                        
+                  ),
+                  column(width=4,
                          box(title="2. Filter data", solidHeader=TRUE, status="primary", width=NULL,
                              numericInput("filter_dep", "Remove samples with sequence count below:", 2000, min = 0, step = 1000),
                              numericInput("otu_filter_count", "Remove OTUs with sequence count at or below:", 1, min = 0, step = 100),
@@ -103,27 +107,25 @@ shinyApp(
                          ),
                          box(title="3. Normalize data", solidHeader=TRUE, status="primary", width=NULL,
                              h4("(I) Rarefied object:"),
-                             numericInput("rare_dep", "Rarefication depth:", 10000, min = 0, step = 100),
-                             h4("(II) Unrarefied object"),
-                             selectInput("size_factor", "Size Factor:", choices=c("TSS", "CSS", "GMPR", "RLE", "TMM"), selected=c("TSS"))
-                         )
-                  ),
-                  column(width=4,
+                             numericInput("rare_dep", "Rarefication depth:", 10000, min = 0, step = 100)#,
+                             #h4("(II) Unrarefied object"),
+                             #selectInput("size_factor", "Size Factor:", choices=c("TSS", "CSS", "GMPR", "RLE", "TMM"), selected=c("TSS"))
+                         ),
                          box(title="4. Subset data", solidHeader=TRUE, status="primary", width=NULL,
                              uiOutput("maptest"),
                              uiOutput("maptest2"),
-                             uiOutput("maptest6"),
-                             uiOutput("maptest3"),
-                             tags$style(type="text/css", "textarea {width:100%}"),
-                             tags$label('for'='input_text', "List of samples to exclude (Case sensitive):"),
-                             tags$textarea(id = 'input_text', placeholder = 'Paste Sample IDs here', rows = 6, ""),
-                             tags$label('for'='output_text', "Invalid sample names, check input:"),
-                             verbatimTextOutput("output_text"),
-                             tags$style(type="text/css", "textarea {width:100%}"),
-                             tags$label('for'='r_select', "Enter R expression to select samples (e.g., 'Sex == 'M' & BMI < 50')"),
-                             tags$textarea(id = 'r_select', placeholder = 'Enter R expression here', rows = 6, NULL),
-                             tags$label('for'='r_select_output', "Invalid sample names, check input:"),
-                             verbatimTextOutput("r_select_output")
+                             uiOutput("maptest6")
+                             #uiOutput("maptest3"),
+                             #tags$style(type="text/css", "textarea {width:100%}"),
+                             #tags$label('for'='input_text', "List of samples to exclude (Case sensitive):"),
+                             #tags$textarea(id = 'input_text', placeholder = 'Paste Sample IDs here', rows = 6, ""),
+                             #tags$label('for'='output_text', "Invalid sample names, check input:"),
+                             #verbatimTextOutput("output_text"),
+                             #tags$style(type="text/css", "textarea {width:100%}"),
+                             #tags$label('for'='r_select', "Enter R expression to select samples (e.g., 'Sex == 'M' & BMI < 50')"),
+                             #tags$textarea(id = 'r_select', placeholder = 'Enter R expression here', rows = 6, NULL),
+                             #tags$label('for'='r_select_output', "Invalid sample names, check input:"),
+                             #verbatimTextOutput("r_select_output")
                          ),
                          box(title="5. Create dataset", solidHeader=TRUE, status="primary", width=NULL,
                              actionButton("create_dataset", label = "Submit"),
@@ -132,24 +134,26 @@ shinyApp(
                              
                          )
                          
-                  ),
-                  column(width=4,
-                         box(title="6. Assign variable types", solidHeader=TRUE, status="primary", width=NULL,
-                             uiOutput("select_cat_vars"),
-                             uiOutput("select_con_vars"),
-                             uiOutput("select_ord_vars")
-                         ),
-                         box(title="7. Select variables", solidHeader=TRUE, status="primary", width=NULL,
-                             uiOutput("select_var"),
-                             uiOutput("select_covars"),
-                             uiOutput("select_subject")
-                         )
-                  )
+                  )#,
+                  #column(width=4,
+                         #box(title="6. Assign variable types", solidHeader=TRUE, status="primary", width=NULL,
+                        #     uiOutput("select_cat_vars"),
+                        #     uiOutput("select_con_vars"),
+                        #     uiOutput("select_ord_vars")
+                        # ),
+                        # box(title="7. Select variables", solidHeader=TRUE, status="primary", width=NULL,
+                        #     uiOutput("select_var"),
+                        #     uiOutput("select_covars"),
+                        #     uiOutput("select_subject")
+                        # )
+                  #)
                 )
         ),
         tabItem(tabName = "summary_statistics",
                 fluidRow(
                   box(width=3,
+                      uiOutput("summary_var"),
+                      selectInput("summary_var_type", label="Variable type:", choices = c("Categorical", "Continuous"), selected="Categorical"),
                       numericInput("prev", "Minimum prevalence threshold (%):", 10, min = 0, max = 100, step = 10),
                       numericInput("abund", "Minimum abundance threshold (%):", 0.2, min = 0, max = 100, step = 1),
                       actionButton("summary_stats", label = "Submit"),
@@ -161,6 +165,7 @@ shinyApp(
                   box(width=9,
                       tabBox(width=12,
                         tabPanel("Sequencing statistics",
+                                 htmlOutput("basic_stats", container=span),
                                  plotOutput("cov_dist", width=900, height=600),
                                  plotOutput("cov_boxplot", width=900, height=600)
                         ),
@@ -175,12 +180,13 @@ shinyApp(
                                  DT::dataTableOutput("gen.abund", width="100%")
                         ),
                         tabPanel("Barplots",
-                                 selectInput("barplot_level", "Level:", choice=c("Phylum", "Family", "Genus"), selected='Phylum'),
+                                 selectInput("barplot_level", "Level:", choice=c("Phylum", "Class", "Order", "Family", "Genus"), selected='Phylum'),
                                  plotOutput("summary_barplot1"),
                                  plotOutput("summary_barplot2")
                         ),
                         tabPanel("Heatmaps",
                                  selectInput("heatmap_type", "Heatmap Type", choice=c("Proportional", "Binary", "Ranked"), selected='Proportional'),
+                                 selectInput("heatmap_level", "Level:", choice=c("Phylum", "Class", "Order", "Family", "Genus"), selected='Phylum'),
                                  iheatmaprOutput("summary_heatmap")
                         )
                       )
@@ -191,10 +197,14 @@ shinyApp(
                 fluidRow(
                   box(width=3,
                       h2("Alpha diversity"),
+                      uiOutput("alpha_var"),
+                      selectInput("alpha_var_type", label="Variable type:", choices = c("Categorical", "Continuous"), selected="Categorical"),
+                      uiOutput("alpha_covars"),
+                      uiOutput("alpha_subject"),
                       uiOutput("alpha_measures"),
                       numericInput("alpha_rare_dep", "Rarefication depth:", 10000, min = 0, step = 100),
                       numericInput("rare_iter", "Rarefication iterations:", 5, min = 1, step = 1),
-                      selectInput("alpha_nonrare_test", label = "Nonrarefied Test", choices = c("NO","YES")),
+                      #selectInput("alpha_nonrare_test", label = "Nonrarefied Test", choices = c("NO","YES")),
                       actionButton("run_alpha", label="Submit"),
                       verbatimTextOutput("alpha_text"),
                       disabled(
@@ -207,7 +217,7 @@ shinyApp(
                                       fluidRow(
                                         h2("Rarefaction Curve"),
                                         plotOutput("rarefy_curve", width=900, height=600),
-                                        h2("Rarefaction Boxplot"),
+                                        h2("Rarefaction Scatter/Boxplot"),
                                         plotOutput("rarefy_boxplot", width=900, height=600)
                                       )
                              ),
@@ -229,8 +239,11 @@ shinyApp(
                 fluidRow(
                   box(width=3,
                       h2("Beta diversity"),
+                      uiOutput("beta_var"),
+                      selectInput("beta_var_type", label="Variable type:", choices = c("Categorical", "Continuous"), selected="Categorical"),
+                      uiOutput("beta_covars"),
                       uiOutput("beta_measures"),
-                      checkboxInput("rf_check", "Rarefaction", value = TRUE),
+                      #checkboxInput("rf_check", "Rarefaction", value = TRUE),
                       selectInput("ord_measure", "Ordination method", choices=c("PCoA", "NDMS"), selected="PCoA"),
                       actionButton("run_beta", label="Submit"),
                       verbatimTextOutput("beta_text"),
@@ -268,12 +281,15 @@ shinyApp(
                 fluidRow(
                   box(width=3,
                       h2("Taxa diversity"),
+                      uiOutput("taxa_var"),
+                      selectInput("taxa_var_type", label="Variable type:", choices = c("Categorical", "Continuous"), selected="Categorical"),
+                      uiOutput("taxa_covars"),
                       selectInput("taxa_method", "Differential abundance test", choices=c("Permutation" = "perm", "Wilcox" = "wilcox", "Wilcox.pair", "Kruskal-Wallis", "Twopart", "Fisher", "OverdispersedPoisson","OverdispersedBinomial", "NegativeBinomial", "ZeroInflatedNB"), selected="Permutation"),
                       selectInput("normalization", "Normalization method", choices=c("Rarefaction", "TSS", "CSS", "GMPR", "RLE", "TMM"), selected="GMPR"),
                       selectInput("taxa_trans", "Transformation method", choices=c("Square root", "Square root arcsine"), selected="Square root"),
                       selectInput("taxa_outliers", "Addressing outliers", choices=c("Winsorization", "Reweighting"), selected="Winsorization"),
                       numericInput("winsor", "Winsorization quantile", 0.97, min = 0, max = 1.0, step = 0.01),
-                      selectInput("mult_test", "Method for multiple testing correction:", choices=c("fdr", "raw", "None", "Bonferroni", "Storey-q"), selected="fdr"),
+                      selectInput("mult_test", "Method for multiple testing correction:", choices=c("FDR benjamini-hochberg", "FDR q-value" ="fdr", "Bonferroni"), selected="fdr"),
                       numericInput("sig_level", "Significance level (%)", 10, min = 0, step = 10),
                       numericInput("taxa_prev", "Minimum prevalence threshold (%):", 10, min = 0, max = 100, step = 10),
                       numericInput("taxa_abund", "Minimum abundance threshold (%):", 0.2, min = 0, max = 100, step = 1),
@@ -289,23 +305,18 @@ shinyApp(
                              tabPanel("Boxplots",
                                       plotOutput("taxa_boxplots")
                              ),
-                             tabPanel("Barplots",
-                                      plotOutput("taxa_barplots")
-                             ),
                              tabPanel("Effect size",
                                       plotOutput("effect_size")
-                             ),
-                             tabPanel("PCA biplot",
-                                      plotOutput("taxa_biplot")
                              ),
                              tabPanel("Heatmaps",
                                       iheatmaprOutput("taxa_prop_heatmap"),
                                       iheatmaprOutput("taxa_rank_heatmap")
                              ),
                              tabPanel("Cladogram",
+                                      p("NOTE: Cladogram generation can be slow when many clades are differentially abundant."),
                                       plotOutput("cladogram", width="100%", height="auto")
                              ),
-                             tabPanel("Test results",
+                             tabPanel("Statistics",
                                       DT::dataTableOutput("taxa_test_results")
                              )
                       )
@@ -450,11 +461,8 @@ shinyApp(
                              tabPanel("Avg. silhouette width",
                                       plotOutput("silhouette_width")
                              ),
-                             tabPanel("PCoA on UniFrac",
+                             tabPanel("PCoA",
                                       plotOutput("pcoa_unifrac")
-                             ),
-                             tabPanel("Cluster-specific taxa barplot",
-                                      plotOutput("cluster_barplot")
                              ),
                              tabPanel("Cluster-specific taxa boxplot",
                                       plotOutput("cluster_boxplot")
@@ -462,7 +470,7 @@ shinyApp(
                              tabPanel("Cluster-specific effect size",
                                       plotOutput("cluster_effect")
                              ),
-                             tabPanel("Association test",
+                             tabPanel("Statistics",
                                       htmlOutput("cluster_association")
                              )
                       )
@@ -561,13 +569,13 @@ shinyApp(
         checkboxGroupInput("filter_var_categories", 'Select categories to include in analysis. Unselected data will be filtered out.', as.character(unique(dat[[cate]])))
       }
     })
-    output$maptest3 = renderUI({
-      if(is.null(mapping_file())){
-        helpText("Upload mapping file to use this functionality")
-      }else{
-        selectInput("sample_name", 'Sample name category (optional, only if using textbox below)', c(names(df()), "Pick one"), "Pick one")
-      }
-    })
+    #output$maptest3 = renderUI({
+    #  if(is.null(mapping_file())){
+    #    helpText("Upload mapping file to use this functionality")
+    #  }else{
+    #    selectInput("sample_name", 'Sample name category (optional, only if using textbox below)', c(names(df()), "Pick one"), "Pick one")
+    #  }
+    #})
     
 
     output$maptest6 = renderUI({
@@ -598,6 +606,14 @@ shinyApp(
         helpText("Upload mapping file to use this functionality")
       }else{
         selectInput("category", 'Variable of interest:', c("Pick one" = "", names(df())), "Pick one", selectize = TRUE)
+      }
+    })
+    
+    output$summary_var = renderUI({
+      if(is.null(mapping_file())){
+        helpText("Upload mapping file to use this functionality")
+      }else{
+        selectInput("summary_cat", 'Variable of interest:', c("Pick one" = "", names(df())), "Pick one", selectize = TRUE)
       }
     })
     
@@ -642,18 +658,79 @@ shinyApp(
     })
     
     #Alpha diversity
+    
+    output$alpha_var = renderUI({
+      if(is.null(mapping_file())){
+        helpText("Upload mapping file to use this functionality")
+      }else{
+        selectInput("alpha_cat", 'Variable of interest:', c("Pick one" = "", names(df())), "Pick one", selectize = TRUE)
+      }
+    })
+    
+    output$alpha_covars = renderUI({
+      if(is.null(mapping_file())){
+        helpText("Upload mapping file to use this functionality")
+      }else{
+        selectizeInput("alpha_covars", "Select covariates:", choices = c(names(df())), multiple=TRUE)
+      }
+    })
+    
+    output$alpha_subject = renderUI({
+      if(is.null(mapping_file())){
+        helpText("Upload mapping file to use this functionality")
+      }else{
+        selectInput("alpha_subject", 'Subject variable:', c("Pick one" = "", names(df())), "Pick one", selectize = TRUE)
+      }
+    })
+    
+    
     output$alpha_measures = renderUI({
       measures = c("Observed", "Chao1", "Shannon", "InvSimpson")
       checkboxGroupInput("a_measures", "Alpha diversity measures", choices = measures, selected = measures)
     })
     
     #Beta diversity
+    
+    output$beta_var = renderUI({
+      if(is.null(mapping_file())){
+        helpText("Upload mapping file to use this functionality")
+      }else{
+        selectInput("beta_cat", 'Variable of interest:', c("Pick one" = "", names(df())), "Pick one", selectize = TRUE)
+      }
+    })
+    
+    output$beta_covars = renderUI({
+      if(is.null(mapping_file())){
+        helpText("Upload mapping file to use this functionality")
+      }else{
+        selectizeInput("beta_covars", "Select covariates:", choices = c(names(df())), multiple=TRUE)
+      }
+    })
+    
     output$beta_measures = renderUI({
       measures = c("BC", "GUniFrac", "UniFrac", "WUniFrac")
       checkboxGroupInput("b_measures", "Beta diversity measures", choices = measures, selected = measures)
     })
     
     #Taxa diversity
+    
+    output$taxa_var = renderUI({
+      if(is.null(mapping_file())){
+        helpText("Upload mapping file to use this functionality")
+      }else{
+        selectInput("taxa_cat", 'Variable of interest:', c("Pick one" = "", names(df())), "Pick one", selectize = TRUE)
+      }
+    })
+    
+    output$taxa_covars = renderUI({
+      if(is.null(mapping_file())){
+        helpText("Upload mapping file to use this functionality")
+      }else{
+        selectizeInput("taxa_covars", "Select covariates:", choices = c(names(df())), multiple=TRUE)
+      }
+    })
+    
+    
     output$vis_level = renderUI({
       cols = c("Phylum","Class", "Order", "Family", "Genus", "Species")
       checkboxGroupInput("vis_level", "Visualization levels:", choices = cols, selected = cols)
@@ -665,18 +742,18 @@ shinyApp(
 
     #submit button
     submit <- eventReactive(input$create_dataset,{
-      num.var = input$selected_con_vars
-      selection = input$r_select
-      if(selection == ""){
-        selection = NULL
-      }
+      #num.var = input$selected_con_vars
+      #selection = input$r_select
+      #if(selection == ""){
+      #  selection = NULL
+      #}
       n <- 8
       progress <- shiny::Progress$new()
       on.exit(progress$close())
       progress$set(message = "Creating dataset...", value = 0)
       progress$inc(1/n, detail = paste("Loading packages..."))
       progress$inc(1/n, detail = paste("Loading data..."))
-      print(num.var)
+      #print(num.var)
       
       mappingFile <- input$mapping_file
       biomFile <- input$biom_file
@@ -692,8 +769,9 @@ shinyApp(
       progress$inc(1/n, detail = paste("Removing bad samples and OTUs..."))
       high_depth_samples <- rownames(data.obj$meta.dat)[colSums(data.obj$otu.tab) >= input$filter_dep]
       low_depth_samples <- rownames(data.obj$meta.dat)[colSums(data.obj$otu.tab) < input$filter_dep]
-      usr_excl_samples <- unlist(strsplit(input$input_text, split="\n")) #from user-specified sample names
-      bad_samples <- c(low_depth_samples, usr_excl_samples)
+      #usr_excl_samples <- unlist(strsplit(input$input_text, split="\n")) #from user-specified sample names
+      #bad_samples <- c(low_depth_samples, usr_excl_samples)
+      bad_samples <- low_depth_samples
       samples_removed_vector$val <- colSums(data.obj$otu.tab)[low_depth_samples]
       good_samples <- rownames(data.obj$meta.dat)[! rownames(data.obj$meta.dat) %in% bad_samples ]
       samples_kept_vector$val <- colSums(data.obj$otu.tab)[good_samples]
@@ -728,15 +806,15 @@ shinyApp(
       print(filter_var)
       filter_var_cat = input$filter_var_categories
       print(filter_var_cat)
-      print(selection)
+      #print(selection)
       if (is.null(filter_var_cat)) {
-        if (is.null(selection)) {
+        #if (is.null(selection)) {
           filIDs <- rownames(data.obj$meta.dat)
           filIDs.rff <- rownames(data.obj.rff$meta.dat)
-        }else{
-          filIDs <- rownames(data.obj$meta.dat)[eval(parse(text=selection), envir=data.obj$meta.dat)]
-          filIDs.rff <- rownames(data.obj.rff$meta.dat)[eval(parse(text=selection), envir=data.obj.rff$meta.dat)]
-        }
+        #}else{
+        #  filIDs <- rownames(data.obj$meta.dat)[eval(parse(text=selection), envir=data.obj$meta.dat)]
+        #  filIDs.rff <- rownames(data.obj.rff$meta.dat)[eval(parse(text=selection), envir=data.obj.rff$meta.dat)]
+        #}
         # remove NA	
         filIDs <- intersect(filIDs,  rownames(data.obj$meta.dat)[!is.na(data.obj$meta.dat)])
         filIDs.rff <- intersect(filIDs.rff,  rownames(data.obj.rff$meta.dat)[!is.na(data.obj.rff$meta.dat)])
@@ -826,6 +904,9 @@ shinyApp(
     
     
     submit_summary <- eventReactive(input$summary_stats,{
+      
+      
+      
       progress <- shiny::Progress$new()
       on.exit(progress$close())
       n <- 3
@@ -875,15 +956,41 @@ shinyApp(
     })
     
     observeEvent(input$summary_stats,{
+      
+      output$basic_stats <- renderUI({
+        str1 <- paste("Paired R1 and R2 sequence reads were processed via the hybrid-denovo bioinformatics sequencing pipeline. ",
+              "Samples with less than ", input$filter_dep, " were removed (", length(samples_removed_vector$val), " samples were removed).",
+              "In total, ", sum(samples_kept_vector$val),  "reads (median: ",  fivenum(samples_kept_vector$val)[3], "reads per sample, ",
+              "range: ", fivenum(samples_kept_vector$val)[1], " to ", fivenum(samples_kept_vector$val)[5], " reads per sample, lower quartile: ",
+              fivenum(samples_kept_vector$val)[2], ", upper quartile: ",fivenum(samples_kept_vector$val)[4], "passed quality control in study samples.")
+              
+        str2 <- paste("Clustering of these 16S sequence tags produces", length(as.vector(rowSums(data$val$otu.tab)))," non-singleton OTUs at 97% similarity (median: ", 
+              fivenum(as.vector(rowSums(data$val$otu.tab)))[3], " reads per OTU, range: ", fivenum(as.vector(rowSums(data$val$otu.tab)))[1], "to", fivenum(as.vector(rowSums(data$val$otu.tab)))[5],
+              "reads per OTU, lower quartile: ",fivenum(as.vector(rowSums(data$val$otu.tab)))[2], "upper quartile:", fivenum(as.vector(rowSums(data$val$otu.tab)))[4],
+              "). These OTUs belong to ", length(unique(data$val$otu.name.full[,"Phylum"])), "phyla, ", length(unique(data$val$otu.name.full[,"Family"])), "families, and ", 
+              length(unique(data$val$otu.name.full[,"Genus"])), "genera based on using the RDP classifier with the GreenGenes database (v13.5).")
+
+        str3 <- paste("The percentage of zeroes in this dataset is ", sum(colSums(data$val$otu.tab == 0))/(nrow(data$val$otu.tab)*ncol(data$val$otu.tab))*100)
+      
+        HTML(paste(str1, str2, str3, sep='<br/>'))
+      })
+      
       output$cov_dist <- renderPlot({
         sam.abund <- colSums(data$val$otu.tab)
         sam.abund <- sam.abund[sam.abund >= 1]
         ggplot2::ggplot(data=data.frame(x=sam.abund), aes(x=x)) + geom_histogram(col='black', fill='gray')  + ylab('Frequency') + xlab('Sequencing depth') + theme_bw()
       })
       output$cov_boxplot <- renderPlot({
+        summary_cat <- input$summary_cat
         otu.tab <- data$val$otu.tab
         map <- data$val$meta.dat
-        colnames(otu.tab) <-  map[[input$category]]
+        if(input$summary_var_type == "Categorical"){
+          data$val$meta.dat[[summary_cat]] <- as.factor(data$val$meta.dat[[summary_cat]])  
+        }else{
+          summary_cat <- paste0(input$summary_cat, "_Above_Below_Median")
+          data$val$meta.dat[[summary_cat]] <- ifelse(data$val$meta.dat[[input$summary_cat]] > median(data$val$meta.dat[[input$summary_cat]]), "above_median" , "below_median")
+        }
+        colnames(otu.tab) <-  map[[summary_cat]]
         df <- data.frame(Group=names(colSums(otu.tab)), coverage=colSums(otu.tab))
         ggplot2::ggplot(df, aes(x=Group, y=log10(coverage), col=Group)) + geom_boxplot(position=position_dodge(width=0.75), outlier.colour = NA) +
           geom_jitter(alpha=0.6, size=3.0,  position = position_jitter(w = 0.1)) + theme_bw()
@@ -916,9 +1023,10 @@ shinyApp(
     observeEvent({
       input$summary_stats
       input$heatmap_type
+      input$heatmap_level
     },{
       output$summary_heatmap <- renderIheatmap({
-        prop <- prop.table(data$val$abund.list$Genus,2)
+        prop <- prop.table(data$val$abund.list[[input$heatmap_level]],2)
         if(input$heatmap_type == "Proportional"){
           col.scheme = c("white", brewer.pal(11, "Spectral"))
           minp <- min(prop[prop!=0]/1.1)
@@ -940,7 +1048,7 @@ shinyApp(
         phy <- sapply(strsplit(rownames(prop), ";"), function(x) x[1])
         main_heatmap(prop, colors=col.scheme) %>% 
           add_row_annotation(phy) %>%
-          add_col_annotation(as.data.frame(data$val$meta.dat[,input$category, drop=FALSE])) %>%
+          add_col_annotation(as.data.frame(data$val$meta.dat[,input$summary_cat, drop=FALSE])) %>%
           add_row_clustering() %>%
           add_col_clustering()
       })
@@ -954,11 +1062,12 @@ shinyApp(
     },{
       prop <- prop.table(data$val$abund.list[[input$barplot_level]],2)
       prop.m <- melt(prop[rev(order(rowMeans(prop))),])
-      prop.m$factor1 <- data$val$meta.dat[match(prop.m$Var2, rownames(data$val$meta.dat)), input$category]
+      prop.m$factor1 <- data$val$meta.dat[match(prop.m$Var2, rownames(data$val$meta.dat)), input$summary_cat]
       
       summary_plots$barplot1 <- ggplot(prop.m, aes(factor1, value, fill = Var1, key=Var1) ) +
-        geom_bar(stat="identity") +
-        guides(fill=FALSE) + scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Set3"))(length(unique(prop.m$Var1))))
+        geom_bar(stat="identity", position="fill") +
+        guides(fill=FALSE) + 
+        scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Set3"))(length(unique(prop.m$Var1))))
       
       summary_plots$barplot2 <- ggplot(prop.m, aes(Var2, value, fill = Var1) ) +
         geom_bar(stat="identity") +
@@ -985,7 +1094,7 @@ shinyApp(
         paste("summary.html")
       },
       content <- function(file) {
-        VOI <- input$category
+        VOI <- input$summary_cat
         summary_table <- dplyr::select(data$val$meta.dat, VOI) %>% group_by_(VOI) %>% dplyr::summarize(n()) %>% knitr::kable()
         filter_dep <- input$filter_dep
         OTU_vector <- as.vector(rowSums(data$val$otu.tab))
@@ -1021,6 +1130,11 @@ shinyApp(
     )
     
     submit_alpha <- eventReactive(input$run_alpha,{
+      
+      if(input$alpha_var_type == "Categorical"){
+        data$val$meta.dat[[input$alpha_cat]] <- as.factor(data$val$meta.dat[[input$alpha_cat]])
+      }
+      
       progress <- shiny::Progress$new()
       on.exit(progress$close())
       progress$set(message = "Making plot", value = 0)
@@ -1028,11 +1142,23 @@ shinyApp(
       
       progress$inc(1/n, detail = paste("Generating rarefication curve...", 1))
       print(input$category)
-      alpha_results$rarefy_curve <- generate_rarefy_curve(data$val, phylo$val, grp.name=input$category, depth=input$alpha_rare_dep, iter.no=input$rare_iter)
+      if(input$alpha_var_type == "Continuous"){
+        alpha_cat <- paste0(input$alpha_cat, "_Above_Below_Median")
+        data$val$meta.dat[[alpha_cat]] <- ifelse(data$val$meta.dat[[input$alpha_cat]] > median(data$val$meta.dat[[input$alpha_cat]]), "above_median" , "below_median")
+        data$val$meta.dat[[alpha_cat]] <- as.factor(data$val$meta.dat[[alpha_cat]])
+        alpha_results$rarefy_curve <- generate_rarefy_curve(data$val, phylo$val, grp.name=alpha_cat, depth=input$alpha_rare_dep, iter.no=input$rare_iter)
+        alpha_results$boxplot <- generate_alpha_scatterplot_shiny(data.obj=data$val, depth=input$alpha_rare_dep, grp.name=input$alpha_cat, strata=NULL)
+      }else{
+        alpha_results$rarefy_curve <- generate_rarefy_curve(data$val, phylo$val, grp.name=input$alpha_cat, depth=input$alpha_rare_dep, iter.no=input$rare_iter)
+        alpha_results$boxplot <- generate_alpha_boxplot(data$val, phylo$val, depth=input$alpha_rare_dep, grp.name=input$alpha_cat, strata=NULL)
+      }
+      
+      
+      
       progress$inc(1/n, detail = paste("Generating alpha diversity boxplots...", 2))
-      alpha_results$boxplot <- generate_alpha_boxplot(data$val, phylo$val, depth=input$alpha_rare_dep, grp.name=input$category, strata=NULL)
+      
       progress$inc(1/n, detail = paste("Perfoming association tests...", 3))
-      alpha_results$stats <- perform_alpha_test2(data$val, depth=input$alpha_rare_dep, iter.no=input$rare_iter, grp.name=input$category, adj.name=NULL)
+      alpha_results$stats <- perform_alpha_test2(data$val, depth=input$alpha_rare_dep, iter.no=input$rare_iter, grp.name=input$alpha_cat, adj.name=NULL)
       print("Done!")
     })
     
@@ -1055,10 +1181,12 @@ shinyApp(
                    html.table.attributes='class="data table table-bordered table-condensed"'))
       })
       output$alpha_association_tab2 <- renderUI({
-        HTML(print(xtable(anova(alpha_results$stats$fitted.obj$Observed), caption="Observed ANOVA results:"), 
-                   type="html",
-                   caption.placement="top",
-                   html.table.attributes='class="data table table-bordered table-condensed"'))
+        if(length(unique(data$val$meta.dat[[input$alpha_cat]])) > 2 & input$alpha_var_type == "Categorical"){
+          HTML(print(xtable(anova(alpha_results$stats$fitted.obj$Observed), caption="Observed ANOVA results:"), 
+                     type="html",
+                     caption.placement="top",
+                     html.table.attributes='class="data table table-bordered table-condensed"'))
+        }
       })
       output$alpha_association_tab3 <- renderUI({
         HTML(print(xtable(summary(alpha_results$stats$fitted.obj$Chao1)$coefficients, caption="Chao1 test results:"), 
@@ -1067,10 +1195,12 @@ shinyApp(
                    html.table.attributes='class="data table table-bordered table-condensed"'))
       })
       output$alpha_association_tab4 <- renderUI({
-        HTML(print(xtable(anova(alpha_results$stats$fitted.obj$Chao1),caption="Chao1 ANOVA results:"), 
-                   type="html",
-                   caption.placement="top",
-                   html.table.attributes='class="data table table-bordered table-condensed"'))
+        if(length(unique(data$val$meta.dat[[input$alpha_cat]])) > 2 & input$alpha_var_type == "Categorical"){
+          HTML(print(xtable(anova(alpha_results$stats$fitted.obj$Chao1),caption="Chao1 ANOVA results:"), 
+                     type="html",
+                     caption.placement="top",
+                     html.table.attributes='class="data table table-bordered table-condensed"'))
+        }
       })
       output$alpha_association_tab5 <- renderUI({
         HTML(print(xtable(summary(alpha_results$stats$fitted.obj$Shannon)$coefficients,caption="Shannon test results:"), 
@@ -1079,10 +1209,12 @@ shinyApp(
                    html.table.attributes='class="data table table-bordered table-condensed"'))
       })
       output$alpha_association_tab6 <- renderUI({
-        HTML(print(xtable(anova(alpha_results$stats$fitted.obj$Shannon),caption="Shannon ANOVA results:"), 
-                   type="html",
-                   caption.placement="top",
-                   html.table.attributes='class="data table table-bordered table-condensed"'))
+        if(length(unique(data$val$meta.dat[[input$alpha_cat]])) > 2 & input$alpha_var_type == "Categorical"){
+          HTML(print(xtable(anova(alpha_results$stats$fitted.obj$Shannon),caption="Shannon ANOVA results:"), 
+                     type="html",
+                     caption.placement="top",
+                     html.table.attributes='class="data table table-bordered table-condensed"'))
+        }
       })
       output$alpha_association_tab7 <- renderUI({
         HTML(print(xtable(summary(alpha_results$stats$fitted.obj$InvSimpson)$coefficients,caption="InvSimpson test results:"), 
@@ -1091,10 +1223,12 @@ shinyApp(
                    html.table.attributes='class="data table table-bordered table-condensed"'))
       })
       output$alpha_association_tab8 <- renderUI({
-        HTML(print(xtable(anova(alpha_results$stats$fitted.obj$InvSimpson), caption="InvSimpson ANOVA results:"), 
-                   type="html",
-                   caption.placement="top",
-                   html.table.attributes='class="data table table-bordered table-condensed"'))
+        if(length(unique(data$val$meta.dat[[input$alpha_cat]])) > 2 & input$alpha_var_type == "Categorical"){
+          HTML(print(xtable(anova(alpha_results$stats$fitted.obj$InvSimpson), caption="InvSimpson ANOVA results:"), 
+                     type="html",
+                     caption.placement="top",
+                     html.table.attributes='class="data table table-bordered table-condensed"'))
+        }
       })
     })
     
@@ -1105,21 +1239,22 @@ shinyApp(
       n <- 7
       progress$inc(1/n, detail = paste("Generating ordination plots..."))
 
-      beta$ord <- generate_ordination2(data.rff$val, dist.rff$val, grp.name=input$category, strata=NULL, dist.names = input$b_measures)
+      beta$ord <- generate_ordination2(data.rff$val, dist.rff$val, grp.name=input$beta_cat, strata=NULL, dist.names = input$b_measures)
       
       progress$inc(1/n, detail = paste("Generating boxplots..."))
 
-      beta$boxplot <- generate_distance_boxplot(data.rff$val, dist.rff$val, grp.name=input$category, within=T, strata=NULL)
+      beta$boxplot <- generate_distance_boxplot(data.rff$val, dist.rff$val, grp.name=input$beta_cat, within=T, strata=NULL)
       
       progress$inc(1/n, detail = paste("Performing permanova test..."))
-      beta$permanova <- perform_permanova_test(data.rff$val, dist.rff$val, grp.name=input$category, adj.name=NULL, strata=NULL)
+      beta$permanova <- perform_permanova_test(data.rff$val, dist.rff$val, grp.name=input$beta_cat, adj.name=NULL, strata=NULL)
       
       progress$inc(1/n, detail = paste("Performing mirkat test..."))
 
-      beta$mirkat <- perform_mirkat_test(data.rff$val, dist.rff$val, grp.name=input$category, adj.name=NULL)    # Could not handle correlation
-      
+      if(length(unique(data.rff$val$meta.dat[[input$beta_cat]])) == 2 & input$beta_var_type == "Categorical"){
+        beta$mirkat <- perform_mirkat_test(data.rff$val, dist.rff$val, grp.name=input$beta_cat, adj.name=NULL)    # Could not handle correlation
+      }
       progress$inc(1/n, detail = paste("Performing beta dispersion test..."))
-      beta$disper <- perform_betadisper_test(data.rff$val, dist.rff$val, grp.name=input$category)
+      beta$disper <- perform_betadisper_test(data.rff$val, dist.rff$val, grp.name=input$beta_cat)
       
       print("Done!")
     })
@@ -1168,12 +1303,16 @@ shinyApp(
     }
     
     mirkat_tab <- function(){
-      mirkat <- cbind(beta$mirkat$indiv, beta$mirkat$omni)
-      colnames(mirkat) =  c("UniFrac", "GUniFrac", "WUniFrac", "BC", "Omnibus")
-      all <- print(xtable(mirkat, caption=paste("P-values for MiRKAT test combining UniFrac,GUniFrac,WUniFrac,BC"), digits=4),
-                   type="html", 
-                   html.table.attributes='class="data table table-bordered table-condensed"', 
-                   caption.placement="top")
+      if(length(unique(data.rff$val$meta.dat[[input$beta_cat]])) == 2 & input$beta_var_type == "Categorical"){
+        mirkat <- cbind(beta$mirkat$indiv, beta$mirkat$omni)
+        colnames(mirkat) =  c("UniFrac", "GUniFrac", "WUniFrac", "BC", "Omnibus")
+        all <- print(xtable(mirkat, caption=paste("P-values for MiRKAT test combining UniFrac,GUniFrac,WUniFrac,BC"), digits=4),
+                     type="html", 
+                     html.table.attributes='class="data table table-bordered table-condensed"', 
+                     caption.placement="top")
+      }else{
+        all <- print("MiRKAT test only supports binary outcomes for categorical variables.")
+      }
       return(all)
     }
     
@@ -1202,8 +1341,13 @@ shinyApp(
       n <- 4
       progress$inc(1/n, detail = paste("Performing differential taxa analysis..."))
       set.seed(123)
+      if(input$taxa_var_type == "Categorical"){
+        data.rff$val$meta.dat[[input$taxa_cat]] <- as.factor(data.rff$val$meta.dat[[input$taxa_cat]])
+      }
+      
+      
       diff.obj.rff$val <- perform_differential_analysis(data.rff$val, 
-                                                    grp.name=input$category, 
+                                                    grp.name=input$taxa_cat, 
                                                     adj.name=NULL, 
                                                     taxa.levels=c('Phylum', 'Class', 'Order', 'Family', 'Genus', 'Species'),
                                                     method=input$taxa_method, 
@@ -1217,7 +1361,7 @@ shinyApp(
       progress$inc(1/n, detail = paste("Creating visualizations for differential analysis..."))
       diff_vis$val <- visualize_differential_analysis(data.rff$val, 
                                       diff.obj.rff$val, 
-                                      grp.name=input$category, 
+                                      grp.name=input$taxa_cat, 
                                       taxa.levels=input$vis_level, 
                                       mt.method=input$mult_test, 
                                       cutoff=input$sig_level / 100, 
@@ -1230,14 +1374,9 @@ shinyApp(
       output$taxa_boxplots <- renderPlot({
         diff_vis$val$boxplot_aggregate
       })
-      output$taxa_barplots <- renderPlot({
-        diff_vis$val$barplot_aggregate
-      })
+
       output$effect_size <- renderPlot({
         diff_vis$val$effect_size
-      })
-      output$taxa_biplot <- renderPlot({
-        diff_vis$val$biplot   
       })
       output$taxa_prop_heatmap <- renderIheatmap({
         diff_vis$val$prop_heatmap
@@ -1502,9 +1641,6 @@ shinyApp(
       })
       output$cluster_boxplot <- renderPlot({
         subtype_results$val$boxplot
-      })
-      output$cluster_barplot <- renderPlot({
-        subtype_results$val$barplot
       })
       output$cluster_effect <- renderPlot({
         subtype_results$val$effect_size
