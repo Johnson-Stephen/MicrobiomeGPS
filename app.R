@@ -481,6 +481,7 @@ shinyApp(
                 fluidRow(
                   box(width=3,
                       h2("Create network"),
+                      uiOutput("network_var"),
                       actionButton("run_network", label="Submit"),
                       verbatimTextOutput("network_text"),
                       h2("Parameters"),
@@ -541,7 +542,7 @@ shinyApp(
     samples_removed_vector <- reactiveValues(val=NULL)
     samples_kept_vector <- reactiveValues(val=NULL)
     
-    debugSource("ShinyStats.R")
+    source("ShinyStats.R")
     
     output$columns = renderUI({
       mydata = get(input$dataset)
@@ -740,6 +741,13 @@ shinyApp(
       checkboxGroupInput("vis_level", "Visualization levels:", choices = cols, selected = cols)
     })
 
+    output$network_var = renderUI({
+      if(is.null(mapping_file())){
+        helpText("Upload mapping file to use this functionality")
+      }else{
+        selectInput("network_cat", 'Variable of interest:', c("Pick one" = "", names(df())), "Pick one", selectize = TRUE)
+      }
+    })
     #submit button
     submit <- eventReactive(input$create_dataset,{
       #num.var = input$selected_con_vars
@@ -1691,14 +1699,14 @@ shinyApp(
       input$run_network
     },{
       output$network_select <- renderUI({
-        selectInput("network_select", 'Select category', c(as.character(unique(data.rff$val$meta.dat[[input$category]])), "Pick one"), "Pick one")
-        #name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_Barplot_Aggregate_Genus_sqrt_BorutaFeatures_Tentative__.pdf"></iframe>')
-        #return(name)
+        selectInput("network_select", 'Select category', c(as.character(unique(data.rff$val$meta.dat[[input$network_cat]])), "Pick one"), "Pick one")
+         #name <- paste0('<iframe style="height:600px; width:900px" src="plots/Taxa_Barplot_Aggregate_Genus_sqrt_BorutaFeatures_Tentative__.pdf"></iframe>')
+         #return(name)
       })
     })
     
     observeEvent({
-      input$network_select
+      input$run_network
     },{
       output$spiec_easi <- renderForceNetwork({
         network_results$val[[input$network_select]]
@@ -1719,7 +1727,7 @@ shinyApp(
       
       pargs1 <- list(rep.num=50, seed=10010, ncores=1)
       
-      VOI = input$category
+      VOI = input$network_cat
       method="mb"
       
       diff_genus <- gsub(".*;", "", rownames(diff.obj.rff$val$qv.list[['Genus']])[which(diff.obj.rff$val$qv.list[['Genus']] <= 0.1)])
