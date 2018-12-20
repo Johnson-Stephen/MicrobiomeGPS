@@ -129,8 +129,8 @@ shinyApp(
                          ),
                          box(title="5. Create dataset", solidHeader=TRUE, status="primary", width=NULL,
                              actionButton("create_dataset", label = "Submit"),
-                             h3(textOutput("status", container = span)),
-                             actionButton("load_dataset", label="Submit")
+                             h3(textOutput("status", container = span))
+                            # actionButton("load_dataset", label="Submit")
                              
                          )
                          
@@ -303,14 +303,29 @@ shinyApp(
                   box(width=9,
                       tabBox(width=12,
                              tabPanel("Boxplots",
-                                      plotOutput("taxa_boxplots")
+                                      tabBox(width=12,
+                                        tabPanel("Aggregate",
+                                          plotOutput("taxa_boxplots", height="auto")
+                                        ),
+                                        tabPanel("Individual",
+                                          uiOutput("taxa_select"),
+                                          uiOutput("taxa_level"),
+                                          plotOutput("taxa_boxplot_ind")
+                                        )
+                                      )
                              ),
                              tabPanel("Effect size",
-                                      plotOutput("effect_size")
+                                      plotOutput("effect_size", height="auto")
                              ),
                              tabPanel("Heatmaps",
-                                      iheatmaprOutput("taxa_prop_heatmap"),
-                                      iheatmaprOutput("taxa_rank_heatmap")
+                                      tabBox(width=12,
+                                        tabPanel("Proportional",
+                                          iheatmaprOutput("taxa_prop_heatmap")
+                                        ),
+                                        tabPanel("Rank-based",
+                                          iheatmaprOutput("taxa_rank_heatmap")
+                                        )
+                                      )
                              ),
                              tabPanel("Cladogram",
                                       p("NOTE: Cladogram generation can be slow when many clades are differentially abundant."),
@@ -327,6 +342,7 @@ shinyApp(
                 fluidRow(
                   box(width=3,
                       h2("Predictive modeling"),
+                      uiOutput("pred_var"),
                       selectInput("pred_method", "Predictive method", choices=c("Random forest"), selected="Random forest"),
                       numericInput("bootstrap_num", "Bootstrap number:", 100, min=0, step = 100),
                       selectInput("boruta_level", "Boruta significance level:", choices=c("Tentative", "Confirmed"), selected="Tentative"),
@@ -376,6 +392,8 @@ shinyApp(
                 fluidRow(
                   box(width=3,
                       h2("Functional Analysis"),
+                      uiOutput("func_var"),
+                      selectInput("func_var_type", label="Variable type:", choices = c("Categorical", "Continuous"), selected="Categorical"),
                       selectInput("func_method", "Functional diversity method", choices=c("perm", "perm.pair", "wilcox", "wilcox.pair", "kruskal", "twopart", "Spearman", "OP", "NB", "ZINB"), selected="perm"),
                       selectInput("func_mult_test", "Method for multiple testing correction:", choices=c("fdr", "raw", "None", "Bonferroni", "Storey-q"), selected="fdr"),
                       numericInput("func_sig_level", "Significance level (%)", 10, min = 0, step = 10),
@@ -406,11 +424,18 @@ shinyApp(
                                       )
                              ),
                              tabPanel("KEGG boxplots",
-                                      plotOutput("kegg_boxplot_agg"),
-                                      plotOutput("kegg_boxplot_ind")
+                                      tabBox(width=12,
+                                        tabPanel("Aggregate",
+                                          plotOutput("kegg_boxplot_agg", height="auto")
+                                        ),
+                                        tabPanel("Individual",
+                                          uiOutput("kegg_box_select"),
+                                          plotOutput("kegg_boxplot_ind")
+                                        )
+                                      )
                              ),
                              tabPanel("KEGG effect size",
-                                      plotOutput("kegg_effect")
+                                      plotOutput("kegg_effect", height="auto")
                              ),
                              tabPanel("KEGG test results",
                                       DT::dataTableOutput("kegg_test")
@@ -418,7 +443,7 @@ shinyApp(
                              tabPanel("COG barplots",
                                       tabBox(width=12,
                                         tabPanel("Aggregate",
-                                          plotOutput("cog_barplot_agg")
+                                          plotOutput("cog_barplot_agg", height="auto")
                                         ),
                                         tabPanel("Individual",
                                           uiOutput("cog_bar_select"),
@@ -427,11 +452,18 @@ shinyApp(
                                       )
                              ),
                              tabPanel("COG boxplots",
-                                      plotOutput("cog_boxplot_agg"),
-                                      plotOutput("cog_boxplot_ind")
+                                      tabBox(width=12,
+                                        tabPanel("Aggregate",
+                                          plotOutput("cog_boxplot_agg", height="auto")
+                                        ),
+                                        tabPanel("Individual",
+                                          uiOutput("cog_box_select"),
+                                          plotOutput("cog_boxplot_ind")
+                                        )
+                                      )
                              ),
                              tabPanel("COG effect size",
-                                      plotOutput("cog_effect")
+                                      plotOutput("cog_effect", height="auto")
                              ),
                              tabPanel("COG test results",
                                       DT::dataTableOutput("cog_test")
@@ -444,6 +476,7 @@ shinyApp(
                 fluidRow(
                   box(width=3,
                       h2("Subtype discovery"),
+                      uiOutput("subtype_var"),
                       selectInput("subtype_method", "Subtype discovery method", choices=c("PAM", "DMM"), selected="PAM"),
                       selectInput("subtype_distance", "Distance used:", choices=c("UniFrac", "WUniFrac", "GUniFrac", "BC", "JS"), selected="UniFrac"),
                       checkboxGroupInput("assessment", "Assessment statistics:", choices=c("Gap", "ASW"), selected="Gap"),
@@ -741,6 +774,30 @@ shinyApp(
       checkboxGroupInput("vis_level", "Visualization levels:", choices = cols, selected = cols)
     })
 
+    output$pred_var = renderUI({
+      if(is.null(mapping_file())){
+        helpText("Upload mapping file to use this functionality")
+      }else{
+        selectInput("pred_cat", 'Variable of interest:', c("Pick one" = "", names(df())), "Pick one", selectize = TRUE)
+      }
+    })
+    
+    output$func_var = renderUI({
+      if(is.null(mapping_file())){
+        helpText("Upload mapping file to use this functionality")
+      }else{
+        selectInput("func_cat", 'Variable of interest:', c("Pick one" = "", names(df())), "Pick one", selectize = TRUE)
+      }
+    })
+    
+    output$subtype_var = renderUI({
+      if(is.null(mapping_file())){
+        helpText("Upload mapping file to use this functionality")
+      }else{
+        selectInput("subtype_cat", 'Variable of interest:', c("Pick one" = "", names(df())), "Pick one", selectize = TRUE)
+      }
+    })
+    
     output$network_var = renderUI({
       if(is.null(mapping_file())){
         helpText("Upload mapping file to use this functionality")
@@ -1377,21 +1434,54 @@ shinyApp(
       
     })
     
+    observeEvent({
+      input$run_taxa
+      input$taxa_level
+      input$taxa_select
+    },{
+      output$taxa_boxplot_ind <- renderPlot({
+          generate_taxa_barplot(data.rff$val, grp.name=input$taxa_cat, taxa.levels=input$taxa_level, taxa.name=input$taxa_select)
+      })
+    })
+    
+    observeEvent({
+      input$run_taxa
+      input$taxa_level
+    },{
+      output$taxa_select <- renderUI({
+        selectInput("taxa_select", 'Select taxa to view', c(rownames(diff.obj.rff$val$qv.list[[input$taxa_level]])[which(diff.obj.rff$val$qv.list[[input$taxa_level]] < (input$sig_level/100))]), "Pick one")
+      })
+    })
+    
     observeEvent(input$run_taxa,{
       
+      output$taxa_level <- renderUI({
+        selectInput("taxa_level", "Select taxa level:", choices=c("Phylum", "Class", "Order", "Family", "Genus", "Species"))
+      })
+      
+      
+      
       output$taxa_boxplots <- renderPlot({
-        diff_vis$val$boxplot_aggregate
+        diff_vis$val$boxplot_aggregate + coord_flip()
+      }, height=function(){
+        session$clientData$output_taxa_boxplots_width * .67
       })
 
       output$effect_size <- renderPlot({
         diff_vis$val$effect_size
+      }, height=function(){
+        session$clientData$output_effect_size_width * .67
       })
       output$taxa_prop_heatmap <- renderIheatmap({
         diff_vis$val$prop_heatmap
-      })
+      })#, height=function(){
+        #session$clientData$output_taxa_prop_heatmap_width * .67
+      #})
       output$taxa_rank_heatmap <- renderIheatmap({
         diff_vis$val$rank_heatmap
-      })
+      })#, height=function(){
+        #session$clientData$output_taxa_rank_heatmap_width * .67
+      #})
       #output$cladogram <- renderPlot({
       #  diff_vis$val$cladogram
       #})
@@ -1416,7 +1506,7 @@ shinyApp(
       progress <- shiny::Progress$new()
       on.exit(progress$close())
       progress$set(message = "Running prediction modeling", value = 1/2)
-      pred_results$val <- predictionRF(data$val,  resp.name=input$category, taxa.level='Genus', boruta.leve=input$boruta_level, B=input$bootstrap_num, prev=input$pred_prev / 100, minp=input$pred_abund / 100)
+      pred_results$val <- predictionRF(data$val,  resp.name=input$pred_cat, taxa.level='Genus', boruta.leve=input$boruta_level, B=input$bootstrap_num, prev=input$pred_prev / 100, minp=input$pred_abund / 100)
       
     })
     
@@ -1467,7 +1557,7 @@ shinyApp(
       input$boruta_barplot_select},
       {
         output$boruta_barplots_ind <- renderPlot({
-          generate_taxa_barplot(data$val, grp.name=input$category, taxa.levels='Genus', taxa.name=input$boruta_barplot_select)
+          generate_taxa_barplot(data$val, grp.name=input$pred_cat, taxa.levels='Genus', taxa.name=input$boruta_barplot_select)
         })
     })
     
@@ -1476,7 +1566,7 @@ shinyApp(
       input$boruta_boxplot_select},
       {
         output$boruta_boxplots <- renderPlot({
-          generate_taxa_boxplot(data$val, grp.name=input$category, taxa.levels='Genus', taxa.name=input$boruta_boxplot_select)
+          generate_taxa_boxplot(data$val, grp.name=input$pred_cat, taxa.levels='Genus', taxa.name=input$boruta_boxplot_select)
         })
       })
     
@@ -1491,8 +1581,11 @@ shinyApp(
       progress$set(message = "Begin functional diversity analysis", value = 0)
       n <- 4
       progress$inc(1/n, detail = paste("Performing KEGG differential analysis..."))
+      if(input$func_var_type == "Categorical"){
+        data.rff$val$meta.dat[[input$func_cat]] <- as.factor(data.rff$val$meta.dat[[input$func_cat]])
+      }
       func.obj.rff$kegg <- perform_differential_analysis(data.rff$val, 
-                                                    grp.name=input$category, 
+                                                    grp.name=input$func_cat, 
                                                     adj.name=NULL,
                                                     method=input$func_method, 
                                                     mt.method=input$func_mult_test, 
@@ -1502,12 +1595,12 @@ shinyApp(
                                                     taxa.levels=c('KEGG_Metabolism'), 
                                                     ann=paste0('KEGG_', input$func_method))
       progress$inc(1/n, detail = paste("Generating KEGG visualizations..."))
-      func_vis$kegg <- visualize_differential_analysis(data.rff$val, func.obj.rff$kegg, grp.name=input$category, cutoff=input$func_sig_level / 100, taxa.levels=c('KEGG_Metabolism'), 
+      func_vis$kegg <- visualize_differential_analysis(data.rff$val, func.obj.rff$kegg, grp.name=input$func_cat, cutoff=input$func_sig_level / 100, taxa.levels=c('KEGG_Metabolism'), 
                                       ann='KEGG', scale='none', mt.method=input$func_mult_test)
       
       progress$inc(1/n, detail = paste("Performing COG differential analysis..."))
       func.obj.rff$cog <- perform_differential_analysis(data.rff$val, 
-                                                    grp.name=input$category, 
+                                                    grp.name=input$func_cat, 
                                                     adj.name=NULL,
                                                     method=input$func_method, 
                                                     mt.method=input$func_mult_test, 
@@ -1517,7 +1610,7 @@ shinyApp(
                                                     taxa.levels=c('COG_Category2'), 
                                                     ann=paste0('COG_', input$func_method))
       progress$inc(1/n, detail = paste("Generating COG visualizations..."))
-      func_vis$cog <- visualize_differential_analysis(data.rff$val, func.obj.rff$cog, grp.name=input$category, cutoff=input$func_sig_level / 100, taxa.levels=c('COG_Category2'), 
+      func_vis$cog <- visualize_differential_analysis(data.rff$val, func.obj.rff$cog, grp.name=input$func_cat, cutoff=input$func_sig_level / 100, taxa.levels=c('COG_Category2'), 
                                       ann='COG', scale='none', mt.method=input$func_mult_test)
     })
     
@@ -1526,19 +1619,29 @@ shinyApp(
       selectInput("kegg_select", 'Sample name category (optional, only if using textbox below)', c(as.character(unique(func_tbl$kegg$Var1)), "Pick one"), "Pick one")
     })
     
+    output$kegg_box_select = renderUI({
+      req(func_tbl)
+      selectInput("kegg_select2", 'Sample name category (optional, only if using textbox below)', c(as.character(unique(func_tbl$kegg$Var1)), "Pick one"), "Pick one")
+    })
+    
     output$cog_bar_select = renderUI({
       req(func_tbl)
       selectInput("cog_select", 'Sample name category (optional, only if using textbox below)', c(as.character(unique(func_tbl$cog$Var1)), "Pick one"), "Pick one")
     })
     
+    output$cog_box_select = renderUI({
+      req(func_tbl)
+      selectInput("cog_select2", 'Sample name category (optional, only if using textbox below)', c(as.character(unique(func_tbl$cog$Var1)), "Pick one"), "Pick one")
+    })
+    
     observeEvent(input$run_func,{
       prop_kegg <- prop.table(data.rff$val$abund.list[['KEGG_Metabolism']],2)
       prop_kegg.m <- melt(prop_kegg[rev(order(rowMeans(prop_kegg))),])
-      prop_kegg.m$factor1 <- data.rff$val$meta.dat[match(prop_kegg.m$Var2, rownames(data.rff$val$meta.dat)), input$category]
+      prop_kegg.m$factor1 <- data.rff$val$meta.dat[match(prop_kegg.m$Var2, rownames(data.rff$val$meta.dat)), input$func_cat]
       
       prop_cog <- prop.table(data.rff$val$abund.list[['COG_Category2']],2)
       prop_cog.m <- melt(prop_cog[rev(order(rowMeans(prop_cog))),])
-      prop_cog.m$factor1 <- data.rff$val$meta.dat[match(prop_cog.m$Var2, rownames(data.rff$val$meta.dat)), input$category]
+      prop_cog.m$factor1 <- data.rff$val$meta.dat[match(prop_cog.m$Var2, rownames(data.rff$val$meta.dat)), input$func_cat]
       
       func_tbl$kegg <- prop_kegg.m
       func_tbl$cog <- prop_cog.m
@@ -1557,18 +1660,28 @@ shinyApp(
       
       output$kegg_boxplot_agg <- renderPlot({
         func_vis$kegg$boxplot_aggregate + coord_flip()
+      },height=function(){
+        session$clientData$output_kegg_boxplot_agg_width  
       })
       output$kegg_effect <- renderPlot({
         func_vis$kegg$effect_size
+      },height=function(){
+        session$clientData$output_kegg_effect_width  
       })
       output$cog_barplot_agg <- renderPlot({
         func_vis$cog$barplot_aggregate
+      },height=function(){
+        session$clientData$output_cog_barplot_agg_width  
       })
       output$cog_boxplot_agg <- renderPlot({
-        func_vis$cog$boxplot_aggregate
+        func_vis$cog$boxplot_aggregate + coord_flip()
+      },height=function(){
+        session$clientData$output_cog_boxplot_agg_width  
       })
       output$cog_effect <- renderPlot({
         func_vis$cog$effect_size
+      },height=function(){
+        session$clientData$output_cog_effect_width  
       })
       output$kegg_test <- DT::renderDataTable({
         func.obj.rff$kegg$res.final[,c("Pvalue", "Qvalue", "logFoldChange", "PrevalChange")]
@@ -1592,11 +1705,17 @@ shinyApp(
           facet_grid(~factor1, scales="free", space="free_x") + 
           geom_hline(aes(yintercept=means), means)
       })
-      
+    })
+    
+    observeEvent({
+      func_tbl$kegg
+      input$kegg_select2
+    },{
       output$kegg_boxplot_ind <- renderPlot({
-        filter(func_tbl$kegg, Var1==input$kegg_select) %>% 
-          ggplot(aes(Var2, value, fill=as.factor(factor1))) + 
-          geom_boxplot(stat="identity") + 
+        filter(func_tbl$kegg, Var1==input$kegg_select2) %>% 
+          ggplot(aes(factor1, value, col=as.factor(factor1))) + 
+          geom_boxplot(position=position_dodge(width=0.75), outlier.colour = NA) + 
+          #geom_boxplot(stat="identity") + 
           facet_grid(~factor1, scales="free", space="free_x") 
       })
       
@@ -1614,11 +1733,17 @@ shinyApp(
           facet_grid(~factor1, scales="free", space="free_x") + 
           geom_hline(aes(yintercept=means), means)
       })
-      
+    })
+    
+    observeEvent({
+      func_tbl$cog
+      input$cog_select2
+    },{
       output$cog_boxplot_ind <- renderPlot({
-        filter(func_tbl$cog, Var1==input$cog_select) %>% 
-          ggplot(aes(Var2, value, fill=as.factor(factor1))) + 
-          geom_boxplot(stat="identity") + 
+        filter(func_tbl$cog, Var1==input$cog_select2) %>% 
+          ggplot(aes(factor1, value, col=as.factor(factor1))) + 
+          geom_boxplot(position=position_dodge(width=0.75), outlier.colour = NA) + 
+          #geom_boxplot(stat="identity") + 
           facet_grid(~factor1, scales="free", space="free_x") 
       })
     })
@@ -1634,7 +1759,7 @@ shinyApp(
       n <- 2
       progress$inc(1/n, detail = paste("Performing cluster analysis..."))
       subtype_results$val <- perform_cluster_analysis(data$val, dist$val, dist.name='UniFrac', method='pam', stat='gap', 
-                               grp.name=input$category, adj.name=NULL) 
+                               grp.name=input$subtype_cat, adj.name=NULL) 
     })
     
     observeEvent(input$run_subtype,{
