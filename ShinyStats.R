@@ -241,7 +241,7 @@ load_data_new <- function (otu.file, map.file, tree.file=NULL, parseFunction=par
 
 # Rev: 2016_09_22 Add load.map
 # Rev: 2016_12_12 Reogranize rarefy, normalize, winsorize
-load_data <- function (otu.file, map.file, tree.file=NULL,  load.map=TRUE, parseFunction=parse_taxonomy_greengenes, version='Old', 
+load_data <- function (otu.file, map.file, tree.file=NULL,  load.map=TRUE, parseFunction=parse_taxonomy_default, version='Old', 
                        species=TRUE, filter.no=1, rep.seq=NULL,
                        rff=FALSE, dep=NULL,
                        norm='TSS', level='OTU', intersect.no=4,
@@ -285,7 +285,7 @@ load_data <- function (otu.file, map.file, tree.file=NULL,  load.map=TRUE, parse
   cat("Load OTU file...\n")  # Rewrite load new biom file, rev:2016-06-20
   if (version != 'New') {
     biom.obj <-  import_biom(otu.file, parseFunction = parseFunction)  		
-    
+    colnames(tax_table(biom.obj)) <- c('Kingdom', 'Phylum', 'Class', 'Order', 'Family', 'Genus', 'Species')
     otu.tab.12 <- otu_table(biom.obj)@.Data
     otu.ind <- rowSums(otu.tab.12) > filter.no  # change otu.tab.12 != 0, rev:2016-06-20
     otu.tab.12 <- otu.tab.12[otu.ind, ]

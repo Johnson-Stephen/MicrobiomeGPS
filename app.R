@@ -1223,7 +1223,7 @@ shinyApp(
       progress$inc(1/n, detail = paste("Generating alpha diversity boxplots...", 2))
       
       progress$inc(1/n, detail = paste("Perfoming association tests...", 3))
-      alpha_results$stats <- perform_alpha_test2(data$val, depth=input$alpha_rare_dep, iter.no=input$rare_iter, grp.name=input$alpha_cat, adj.name=NULL)
+      alpha_results$stats <- perform_alpha_test2(data$val, depth=input$alpha_rare_dep, iter.no=input$rare_iter, grp.name=input$alpha_cat, adj.name=input$alpha_covars)
       print("Done!")
     })
     
