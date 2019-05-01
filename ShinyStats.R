@@ -3577,6 +3577,79 @@ clade.anno2 <- function(gtree, anno.data, alpha=0.2, anno.depth=3, anno.x=10, an
   p
 }
 
+clade.anno3 <- function(gtree, anno.data, alpha=0.2, anno.depth=3, anno.x=10, anno.y=40){
+  short.labs <- c(letters, paste0(letters, letters))
+  get_offset <- function(x) {(x*0.2+0.2)^2}
+  get_angle <- function(node){
+    data <- gtree$data
+    sp <- ggtree:::get.offspring.df(data, node)
+    sp2 <- c(sp, node)
+    sp.df <- data[match(sp2, data$node),]
+    mean(range(sp.df$angle))
+  }
+  anno.data = arrange(anno.data, node)
+  hilight.color <- anno.data$color
+  node_list <- anno.data$node
+  node_ids <- (gtree$data %>% filter(label %in% node_list ) %>% arrange(label))$node
+  anno <- rep('white', nrow(gtree$data))
+  short.labs.anno <- NULL
+  for(i in 1:length(node_ids)){
+    n <- node_ids[i]
+    color <- hilight.color[i]
+    anno[n] <- color
+    mapping <- gtree$data %>% filter(node == n)
+    nodeClass <- as.numeric(mapping$nodeClass)
+    offset <- get_offset(nodeClass)
+    lab <- short.labs[1]
+    short.labs <- short.labs[-1]
+    color2 = anno[n]
+    if(is.null(short.labs.anno)){
+      short.labs.anno = data.frame(lab=lab, annot = mapping$label, node=n, color=color2, stringsAsFactors = F)
+    }else{
+      short.labs.anno = rbind(short.labs.anno,
+                              c(lab, mapping$label, n, color2))
+    }
+    offset2 <- get_offset(nodeClass) - 0.4
+    angle <- get_angle(n) + 90
+    gtree <- gtree + geom_hilight(node=n, fill=color, alpha=alpha, extend=offset) + geom_cladelabel(node=n, label=lab, fontsize=1.5+sqrt(nodeClass), offset.text=offset2, barsize=0, hjust=0.5)
+  }
+  gtree$layers <- rev(gtree$layers)
+  gtree <- gtree + geom_point2(aes(size=I(nodeSize)), fill=anno, shape=21)
+  ## add labels
+  
+  #for(i in 1:length(node_ids)){
+    #n <- node_ids[i]
+    #mapping <- gtree$data %>% filter(node == n)
+    #nodeClass <- as.numeric(mapping$nodeClass)
+    #lab <- short.labs[1]
+    #short.labs <- short.labs[-1]
+    #color = anno[n]
+    #if(is.null(short.labs.anno)){
+    #  short.labs.anno = data.frame(lab=lab, annot = mapping$label, node=n, color=color, stringsAsFactors = F)
+    #}else{
+    #  short.labs.anno = rbind(short.labs.anno,
+    #                          c(lab, mapping$label, n, color))
+    #}
+    #offset <- get_offset(nodeClass) - 0.4
+    #angle <- get_angle(n) + 90
+    #gtree <-
+    #  gtree + geom_cladelabel(node=n, label=lab, fontsize=1.5+sqrt(nodeClass),
+    #                          offset.text=offset, barsize=0, hjust=0.5)
+  #}
+  anno_shapes = sapply(short.labs.anno$lab, utf8ToInt)
+  labels = paste0(short.labs.anno$lab, ": ", gtree$data$label[node_ids])
+  df2 <- unique(anno.data[,c("color", "cat")])
+  df2$x=0
+  df2$y=1
+  df2$alpha=1
+  df3 <- data.frame(color="white", cat="clade", x=0, y=0, alpha=1)
+  df1 <- data.frame(color=anno[node_ids], cat=labels, x=0, y=1, alpha=alpha)
+  df <- rbind(df2, df3, df1)
+  p <- gtree + geom_rect(aes_(fill=~cat, xmin=~x, xmax=~x, ymin=~y, ymax=~y), data=df, inherit.aes=F) + guides(fill=guide_legend(override.aes=list(fill=alpha(df$color, df$alpha)))) + theme(legend.position="right")
+  p
+}
+
+
 make_cladogram <- function(data.obj, diff.obj, grp.name, cutoff=0.05, prev=0.1, minp=0.002, mt.method="fdr"){
   
   df <- data.obj$meta.dat
@@ -3687,7 +3760,7 @@ make_cladogram <- function(data.obj, diff.obj, grp.name, cutoff=0.05, prev=0.1, 
   testtree <- parseLefse(phlan)
   
   p <- tree.backbone(testtree)
-  p <- clade.anno2(p, anno.data)
+  p <- clade.anno3(p, anno.data)
   p
 }
 
