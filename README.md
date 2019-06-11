@@ -1,6 +1,6 @@
 # MicrobiomeGPS
 
-MicrobiomeGPS is an R/Shiny application which for exploratory data analysis of microbiome count data. Current modules include:
+MicrobiomeGPS is an application which for exploratory data analysis of microbiome count data, available in both command line (R) and GUI (Shiny) versions. Current modules include:
 
  * Alpha diversity 
  * Beta diversity
