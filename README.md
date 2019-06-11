@@ -1,12 +1,13 @@
 # MicrobiomeGPS
 
 MicrobiomeGPS is an R/Shiny application which for exploratory data analysis of microbiome count data. Current modules include:
-*Alpha diversity 
-*Beta diversity
-*Differential abundance analysis (taxonomic or functional)
-*Predictive modeling
-*Community subtype analysis
-*OTU network analysis
+
+ * Alpha diversity 
+ * Beta diversity
+ * Differential abundance analysis (taxonomic or functional)
+ * Predictive modeling
+ * Community subtype analysis
+ * OTU network analysis
 
 We include the most robust and powerful statistical methods developed for microbiome data. Specifically, we use linear model/mixed effects modeling for alpha-diversity, MiRKAT/PERMANOVA for beta-diversity, permutation-based FDR control for DA analysis, tree-based random forests for predictive modeling, and SPIEC-EASI for OTU network analysis.  
 
