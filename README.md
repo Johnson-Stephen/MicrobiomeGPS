@@ -1,37 +1,28 @@
 # MicrobiomeGPS
-A README.md file is intended to quickly orient readers to what your project can do.  New to Markdown? [Learn more](http://go.microsoft.com/fwlink/p/?LinkId=524306&clcid=0x409)
 
-## Edit this ReadMe and commit your change to a topic branch
-In Git, branches are cheap.  You should use them whenever you're making changes to your repository.  Edit this file by clicking on the edit icon.
+MicrobiomeGPS is an R/Shiny application which takes as input an OTU count table, phylogenetic tree and sample mapping file, with optional input for COG and KEGG tables. MicrobiomeGPS then performs numerous statistical tests and generates interactive visualizations and tables for different type of analysis such as exploratory data analysis, alpha- and beta- diversity analysis, taxonomic and functional differential abundance analysis, predictive modeling using random forests, community subtype analysis, and OTU network analysis. We include the most robust and powerful statistical methods developed recently for microbiome data. Specifically, we use linear model/mixed effects modeling for alpha-diversity, MiRKAT/PERMANOVA for beta-diversity, permutation-based FDR control for taxa/function data, tree-based random forests for predictive modeling, and SPIEC-EASI for OTU network analysis.  MicrobiomeGPS integrates covariate adjustment in each step and thus can address potential confounding effects due to technical, biological and clinical variables. It can also analyze repeated measurement data by taking into account the within-subject correlation structure. MicrobiomeGPS also allows users to import/export all parameters and download detailed HTML reports to facilitate collaboration and reproducibility. 
 
-Then make some changes to this ReadMe file.
+## Starting MicrobiomeGPS
 
-> Make some **edits** to _this blockquote_
+### Via Github
 
-When you are done, click the dropdown arrow next to the save button - that will allow you to commit your changes to a new branch.
+Starting the MicrobiomeGPS Shiny app is quite simple. In an R session, simply enter:
 
-## Create a pull request to contribute your changes back into master
-Pull requests are the way to move changes from a topic branch back into the master branch.
+```
+shiny::runGitHub("SJohnsonMayo/MicrobiomeGPS")
+```
 
-Click on the **Pull Requests** page in the **CODE** hub, then click "New Pull Request" to create a new pull request from your topic branch to the master branch.
+###Via ShinyApps.io
 
-When you are done adding details, click "Create Pull request". Once a pull request is sent, reviewers can see your changes, recommend modifications, or even push follow-up commits.
+MicrobiomeGPS is also currently deployed on a free shinyapps.io server: 
 
-First time creating a pull request?  [Learn more](http://go.microsoft.com/fwlink/?LinkId=533211&clcid=0x409)
+https://sjohnsonmayo.shinyapps.io/github_MicrobiomeGPS/
 
-### Congratulations! You've completed the grand tour of the CODE hub!
 
-# Next steps
+### Documentation
 
-If you haven't already done so, [install Git](http://git-scm.com/downloads) (as well as [Git Credential Manager](https://java.visualstudio.com/Downloads/gitcredentialmanager/Index) for Linux or Mac OS)
+Watch this space for a manual and vignettes. 
 
-Choose and install one of these supported IDEs:
-* [Visual Studio](http://go.microsoft.com/fwlink/?LinkId=309297&clcid=0x409&slcid=0x409)
-* [Android Studio](https://developer.android.com/studio) (with [Team Services Plugin](https://java.visualstudio.com/Downloads/intellijplugin/Index))
-* [Eclipse](http://www.eclipse.org/downloads) (with [Team Explorer Everywhere](https://java.visualstudio.com/Downloads/eclipseplugin/Index))
-* [IntelliJ IDEA](https://www.jetbrains.com/idea/download) (with [Team Services Plugin](https://java.visualstudio.com/Downloads/intellijplugin/Index))
-* [Visual Studio Code](https://code.visualstudio.com/Download) (with [Team Services Extension](https://java.visualstudio.com/Downloads/visualstudiocode/Index))
+### Issues and Updates
 
-Then clone this repo to your local machine to get started with your own project.
-
-Happy coding!
+MicrobiomeGPS is still under active development. Upcoming features and any bugs can be found on the [issues page](https://github.com/SJohnsonMayo/MicrobiomeGPS/issues).
